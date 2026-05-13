@@ -46,7 +46,7 @@ The core modules of the application are:
 
 5.  **Cross-Cutting Concerns**:
     *   **Security**: Data encryption (at rest and in transit), input validation, protection against common web vulnerabilities (XSS, CSRF, SQL Injection).
-    *   **Scalability**: Strategies for scaling individual microservices and the database.
+    *   **Scalability**: Strategies for scaling individual services and the database.
     *   **Reliability and Fault Tolerance**: Service redundancy, health checks, graceful degradation, disaster recovery.
     *   **Monitoring and Logging**: Centralized logging strategy, performance monitoring tools, alerting for system issues.
     *   **Deployment and CI/CD**: Recommended CI/CD pipeline, containerization strategy (e.g., Docker, Kubernetes).
