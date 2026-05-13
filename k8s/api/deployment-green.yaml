@@ -17,9 +17,14 @@ spec:
         app: ascend-api
         version: green
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
       - name: api
         image: ascend-api:latest # Will be replaced by CI
+        securityContext:
+          allowPrivilegeEscalation: false
         ports:
         - containerPort: 3000
         livenessProbe:

@@ -2,7 +2,7 @@ packages:
   - 'packages/*'
   - 'apps/*'
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
 
 # pnpm options
 ignore-workspace-root-check: true

@@ -17,9 +17,14 @@ spec:
         app: ascend-web
         version: blue
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
       - name: web
         image: ascend-web:latest # Will be replaced by CI
+        securityContext:
+          allowPrivilegeEscalation: false
         ports:
         - containerPort: 80
         livenessProbe:
