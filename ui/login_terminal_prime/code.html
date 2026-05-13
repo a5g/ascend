@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-container": "#ff5451",
+            "on-secondary-fixed": "#002113",
+            "error": "#ffb4ab",
+            "surface-container-low": "#0d1c32",
+            "outline-variant": "#424754",
+            "primary-fixed": "#d8e2ff",
+            "on-error-container": "#ffdad6",
+            "primary": "#adc6ff",
+            "surface-bright": "#2c3951",
+            "secondary-fixed": "#6ffbbe",
+            "on-secondary": "#003824",
+            "surface-variant": "#27354c",
+            "surface-dim": "#041329",
+            "on-tertiary-container": "#5c0008",
+            "on-primary-fixed-variant": "#004395",
+            "tertiary-fixed": "#ffdad7",
+            "inverse-on-surface": "#233148",
+            "outline": "#8c909f",
+            "background": "#041329",
+            "surface-container-high": "#1c2a41",
+            "inverse-surface": "#d6e3ff",
+            "on-surface": "#d6e3ff",
+            "surface-tint": "#adc6ff",
+            "secondary-container": "#00a572",
+            "on-primary-container": "#00285d",
+            "on-secondary-container": "#00311f",
+            "primary-container": "#4d8eff",
+            "surface-container-highest": "#27354c",
+            "surface-container": "#112036",
+            "on-primary-fixed": "#001a42",
+            "secondary-fixed-dim": "#4edea3",
+            "primary-fixed-dim": "#adc6ff",
+            "secondary": "#4edea3",
+            "error-container": "#93000a",
+            "on-surface-variant": "#c2c6d6",
+            "tertiary-fixed-dim": "#ffb3ad",
+            "inverse-primary": "#005ac2",
+            "surface-container-lowest": "#010e24",
+            "on-error": "#690005",
+            "surface": "#041329",
+            "on-tertiary": "#68000a",
+            "on-secondary-fixed-variant": "#005236",
+            "on-background": "#d6e3ff",
+            "tertiary": "#ffb3ad",
+            "on-tertiary-fixed-variant": "#930013",
+            "on-primary": "#002e6a",
+            "on-tertiary-fixed": "#410004"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "component-padding-x": "12px",
+            "density": "compact",
+            "unit": "4px",
+            "gutter": "12px",
+            "container-margin": "24px",
+            "component-padding-y": "8px"
+          },
+          "fontFamily": {
+            "title-sm": ["Inter"],
+            "headline-md": ["Inter"],
+            "display-lg": ["Inter"],
+            "body-sm": ["Inter"],
+            "label-caps": ["Inter"],
+            "data-mono": ["Inter"],
+            "body-md": ["Inter"]
+          },
+          "fontSize": {
+            "title-sm": ["18px", {"lineHeight": "1.4", "letterSpacing": "0", "fontWeight": "600"}],
+            "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+            "body-sm": ["13px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+            "label-caps": ["11px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "700"}],
+            "data-mono": ["13px", {"lineHeight": "1", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+            "body-md": ["14px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body {
+      background-color: #041329;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen font-body-md text-on-background selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar Component (Filtered Logic: Suppressing Nav in Transactional View) -->
+<header class="bg-slate-950 flex justify-between items-center px-6 h-14 w-full docked full-width top-0 border-b border-slate-800 transition-colors duration-150">
+<div class="font-inter tracking-tight text-lg font-bold tracking-widest text-slate-50 uppercase">
+      TERMINAL PRIME
+    </div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="help">help</span>
+<span class="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="security">security</span>
+</div>
+</header>
+<!-- Auth Canvas -->
+<main class="flex-grow flex items-center justify-center px-6 py-12 relative overflow-hidden">
+<!-- Abstract Background Texture -->
+<div class="absolute inset-0 z-0 opacity-20 pointer-events-none">
+<div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary-container rounded-full blur-[120px] -translate-y-1/2 translate-x-1/4"></div>
+<div class="absolute bottom-0 left-0 w-[400px] h-[400px] bg-on-primary-fixed-variant rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4"></div>
+</div>
+<!-- Login Card -->
+<div class="w-full max-w-md z-10">
+<div class="bg-surface-container border border-outline-variant p-8 shadow-2xl relative">
+<!-- Brand Header within Card -->
+<div class="mb-8 space-y-2">
+<h1 class="font-display-lg text-display-lg text-on-surface">Institutional Login</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Access your high-performance trading gateway.</p>
+</div>
+<form class="space-y-6">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant" for="email">EMAIL ADDRESS</label>
+<div class="relative group">
+<input class="w-full bg-surface-container-lowest border border-outline-variant px-4 py-3 text-on-surface font-body-md focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all" id="email" placeholder="name@firm.com" type="email"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="font-label-caps text-label-caps text-on-surface-variant" for="password">PASSWORD</label>
+<a class="font-label-caps text-label-caps text-primary hover:text-primary-fixed transition-colors" href="#">FORGOT PASSWORD?</a>
+</div>
+<div class="relative group">
+<input class="w-full bg-surface-container-lowest border border-outline-variant px-4 py-3 text-on-surface font-body-md focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all" id="password" placeholder="••••••••" type="password"/>
+</div>
+</div>
+<!-- Security Check / Action -->
+<div class="flex items-center gap-2 py-2">
+<input class="w-4 h-4 rounded-none bg-surface-container-lowest border-outline-variant text-primary-container focus:ring-offset-background" id="remember" type="checkbox"/>
+<label class="font-body-sm text-body-sm text-on-surface-variant select-none" for="remember">Remember this device for 30 days</label>
+</div>
+<!-- Primary Action -->
+<button class="w-full bg-primary-container text-on-primary-container font-title-sm text-title-sm py-4 uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all" type="submit">
+            Sign In
+          </button>
+</form>
+<div class="mt-8 pt-6 border-t border-outline-variant flex flex-col items-center gap-4">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+            New to the platform? 
+            <a class="text-primary font-title-sm font-semibold hover:underline" href="#">Create an Account</a>
+</p>
+</div>
+</div>
+<!-- Security Trust Badges -->
+<div class="mt-8 flex justify-center items-center gap-8 opacity-60">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="lock">lock</span>
+<span class="font-label-caps text-label-caps">256-BIT ENCRYPTION</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="verified_user">verified_user</span>
+<span class="font-label-caps text-label-caps">SOCI 2 TYPE II</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer Component -->
+<footer class="bg-slate-950 flex flex-col md:flex-row justify-between items-center px-6 py-4 w-full gap-4 docked full-width bottom-0 border-t border-slate-800 transition-opacity duration-200">
+<div class="font-inter uppercase tracking-wider text-[10px] text-slate-500">
+      © 2024 TERMINAL PRIME INC. ALL RIGHTS RESERVED. INSTITUTIONAL GRADE SECURITY.
+    </div>
+<nav class="flex gap-6">
+<a class="font-inter uppercase tracking-wider text-[10px] text-slate-500 hover:text-blue-400 transition-colors" href="#">Privacy Policy</a>
+<a class="font-inter uppercase tracking-wider text-[10px] text-slate-500 hover:text-blue-400 transition-colors" href="#">Terms of Service</a>
+<a class="font-inter uppercase tracking-wider text-[10px] text-slate-500 hover:text-blue-400 transition-colors" href="#">Risk Disclosure</a>
+<a class="font-inter uppercase tracking-wider text-[10px] text-slate-500 hover:text-blue-400 transition-colors" href="#">Contact Support</a>
+</nav>
+</footer>
+</body></html>
