@@ -1,0 +1,9 @@
+{
+  "name": "@ascend/root",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo 'No tests specified yet'",
+    "build": "pnpm -r run build"
+  }
+}

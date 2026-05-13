@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ascend-web-blue
+  labels:
+    app: ascend-web
+    version: blue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ascend-web
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: ascend-web
+        version: blue
+    spec:
+      containers:
+      - name: web
+        image: ascend-web:latest # Will be replaced by CI
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
