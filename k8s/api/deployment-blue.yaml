@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ascend-api-blue
+  labels:
+    app: ascend-api
+    version: blue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ascend-api
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: ascend-api
+        version: blue
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: api
+        image: ascend-api:latest # Will be replaced by CI
+        securityContext:
+          allowPrivilegeEscalation: false
+        ports:
+        - containerPort: 3000
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        envFrom:
+        - secretRef:
+            name: ascend-secrets

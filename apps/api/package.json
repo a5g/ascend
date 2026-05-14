@@ -1,0 +1,19 @@
+{
+  "name": "@ascend/api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "fastify": "^5.8.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
