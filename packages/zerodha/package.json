@@ -1,0 +1,14 @@
+{
+  "name": "@ascend/zerodha",
+  "version": "1.0.0",
+  "main": "src/client.ts",
+  "dependencies": {
+    "@ascend/crypto": "workspace:*",
+    "kiteconnect": "^3.2.1",
+    "opossum": "^8.5.0",
+    "p-queue": "^8.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

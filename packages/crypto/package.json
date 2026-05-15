@@ -1,0 +1,8 @@
+{
+  "name": "@ascend/crypto",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "dependencies": {
+    "crypto": "^1.0.1"
+  }
+}
