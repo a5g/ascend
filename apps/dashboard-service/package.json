@@ -5,14 +5,14 @@
   "dependencies": {
     "@ascend/db": "workspace:*",
     "@ascend/zerodha": "workspace:*",
-    "@fastify/redis": "^7.1.0",
+    "@fastify/redis": "^7.2.0",
     "@types/jsonwebtoken": "^9.0.10",
     "fastify": "^5.8.5",
     "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "@types/node": "^20.19.41",
-    "typescript": "^5.9.3"
+    "@types/node": "^25.8.0",
+    "typescript": "^6.0.3"
   }
 }
