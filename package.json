@@ -5,5 +5,10 @@
   "scripts": {
     "test": "echo 'No tests specified yet'",
     "build": "pnpm -r run build"
+  },
+  "pnpm": {
+    "overrides": {
+      "serialize-javascript": "^7.0.5"
+    }
   }
 }
