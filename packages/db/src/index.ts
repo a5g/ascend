@@ -51,4 +51,42 @@ User.init(
   }
 );
 
-export { sequelize, User };
+class PositionSizingConfig extends Model {
+  public id!: number;
+  public userId!: number;
+  public configName!: string;
+  public strategy!: string;
+  public parameters!: object;
+}
+
+PositionSizingConfig.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    configName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    strategy: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    parameters: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'position_sizing_configs',
+  }
+);
+
+export { sequelize, User, PositionSizingConfig };
