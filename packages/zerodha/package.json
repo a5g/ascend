@@ -9,6 +9,7 @@
     "p-queue": "^9.2.0"
   },
   "devDependencies": {
+    "@types/opossum": "^8.1.9",
     "typescript": "^6.0.3"
   }
 }

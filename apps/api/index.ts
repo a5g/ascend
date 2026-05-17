@@ -6,6 +6,12 @@ fastify.get('/health', async (request, reply) => {
   return { status: 'ok' };
 });
 
+import alertsRoutes from './alerts';
+fastify.register(alertsRoutes);
+
+import notificationsRoutes from './notifications';
+fastify.register(notificationsRoutes);
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: '0.0.0.0' });
