@@ -1,0 +1,24 @@
+
+> @ascend/mfe-alerts@1.0.0 dev /app/apps/mfe-alerts
+> webpack serve --mode development
+
+<i> [webpack-dev-server] Project is running at:
+<i> [webpack-dev-server] Loopback: http://localhost:4004/, http://[::1]:4004/
+<i> [webpack-dev-server] On Your Network (IPv4): http://192.168.0.2:4004/
+<i> [webpack-dev-server] Content not from webpack is served from '/app/apps/mfe-alerts/public' directory
+assets by chunk 5.12 MiB (id hint: vendors)
+  asset vendors-node_modules_pnpm_lucide-react_0_300_0_react_19_2_6_node_modules_lucide-react_dist_es-ae5617.js 3.76 MiB [emitted] (id hint: vendors)
+  asset vendors-node_modules_pnpm_react-dom_19_2_6_react_19_2_6_node_modules_react-dom_client_js.js 1.07 MiB [emitted] (id hint: vendors)
+  asset vendors-node_modules_pnpm_socket_io-client_4_8_3_node_modules_socket_io-client_build_esm_index_js.js 200 KiB [emitted] (id hint: vendors)
+  asset vendors-node_modules_pnpm_react_19_2_6_node_modules_react_index_js.js 49.8 KiB [emitted] (id hint: vendors)
+  asset vendors-node_modules_pnpm_css-loader_7_1_4_webpack_5_106_2_node_modules_css-loader_dist_runti-a47235.js 28.9 KiB [emitted] (id hint: vendors)
+  asset vendors-node_modules_pnpm_react-dom_19_2_6_react_19_2_6_node_modules_react-dom_index_js.js 21 KiB [emitted] (id hint: vendors)
+asset remoteEntry.js 205 KiB [emitted] (name: mfe_alerts)
+asset main.js 203 KiB [emitted] (name: main)
+asset src_index_css.js 35.5 KiB [emitted]
+asset src_components_Alerts_tsx.js 18.7 KiB [emitted]
+asset src_components_NotificationBell_tsx.js 8.7 KiB [emitted]
+asset src_bootstrap_tsx-webpack_sharing_consume_default_react-dom_react-dom.js 2.04 KiB [emitted]
+asset index.html 245 bytes [emitted]
+1480 modules
+webpack 5.106.2 compiled successfully in 8804 ms
