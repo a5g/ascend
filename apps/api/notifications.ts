@@ -34,7 +34,7 @@ export default async function (fastify: FastifyInstance) {
         }
 
         await notification.update({ is_read: true });
-        return reply.send(notification);
+        return reply.send({ data: notification });
     });
 
     fastify.put('/api/notifications/read-all', async (request, reply) => {

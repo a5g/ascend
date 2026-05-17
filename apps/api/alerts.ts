@@ -65,7 +65,7 @@ export default async function (fastify: FastifyInstance) {
         }
 
         await alert.update(updates);
-        return reply.send(alert);
+        return reply.send({ data: alert });
     });
 
     fastify.delete('/api/alerts/:id', async (request, reply) => {

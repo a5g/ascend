@@ -31,7 +31,7 @@ export async function startConsumers() {
                 await handler(content);
                 channel.ack(msg);
             } catch (err) {
-                console.error(`Error processing message from ${channelName}:`, err);
+                console.error('Error processing message from %s:', channelName, err);
 
                 // Manual retry logic
                 const headers = msg.properties.headers || {};

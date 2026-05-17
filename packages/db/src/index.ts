@@ -89,4 +89,103 @@ PositionSizingConfig.init(
   }
 );
 
-export { sequelize, User, PositionSizingConfig };
+class Alert extends Model {
+  public id!: number;
+  public user_id!: number;
+  public symbol!: string;
+  public condition!: string;
+  public threshold!: number | null;
+  public reference_price!: number | null;
+  public channels!: object;
+  public active!: boolean;
+  public triggered_at!: Date | null;
+}
+
+Alert.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    symbol: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    condition: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    threshold: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    reference_price: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
+    channels: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: [],
+    },
+    active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    triggered_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'alerts',
+  }
+);
+
+class Notification extends Model {
+  public id!: number;
+  public user_id!: number;
+  public alert_id!: number | null;
+  public message!: string;
+  public is_read!: boolean;
+}
+
+Notification.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    user_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    alert_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    message: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    is_read: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'notifications',
+  }
+);
+
+export { sequelize, User, PositionSizingConfig, Alert, Notification };

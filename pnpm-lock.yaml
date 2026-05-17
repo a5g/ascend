@@ -367,6 +367,9 @@ importers:
         specifier: ^6.37.8
         version: 6.37.8(pg-hstore@2.3.4)(pg@8.20.0)
     devDependencies:
+      '@types/node':
+        specifier: ^25.8.0
+        version: 25.8.0
       sequelize-cli:
         specifier: ^6.6.5
         version: 6.6.5
