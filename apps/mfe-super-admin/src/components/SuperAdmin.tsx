@@ -4,6 +4,10 @@ import { UsersTable } from './UsersTable';
 import { NewAdminForm } from './NewAdminForm';
 import { SettingsEditor } from './SettingsEditor';
 import { AuditLogViewer } from './AuditLogViewer';
+import { ZerodhaStatus } from './ZerodhaStatus';
+import { SystemLogs } from './SystemLogs';
+import { AutomatedScripts } from './AutomatedScripts';
+import { StatusBar } from './StatusBar';
 
 const SuperAdmin = () => {
     const [activeTab, setActiveTab] = useState('health');
@@ -41,6 +45,7 @@ const SuperAdmin = () => {
                     </div>
                 </main>
             </div>
+            <StatusBar />
         </div>
     );
 };
@@ -118,6 +123,13 @@ const HealthTab = () => {
                         </div>
                     ))}
                 </div>
+            </div>
+
+            <ZerodhaStatus />
+
+            <div className="grid grid-cols-12 gap-gutter">
+                <SystemLogs />
+                <AutomatedScripts />
             </div>
         </div>
     );
