@@ -17,6 +17,11 @@ Follow these step-by-step instructions to run the project locally.
     ```bash
     pnpm install
     ```
+    *Note:* If you encounter a `[ERR_PNPM_IGNORED_BUILDS]` error indicating ignored build scripts (e.g., for `protobufjs`), run:
+    ```bash
+    pnpm approve-builds
+    pnpm install
+    ```
 
 2.  **Environment Variables:**
     Copy the example environment file and configure it if necessary:
