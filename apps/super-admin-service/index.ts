@@ -1,8 +1,15 @@
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('super-admin-service');
+
 import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
 import { User } from '@ascend/db';
 import crypto from 'crypto';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: createLogger('super-admin-service') });
+
+fastify.register(fastifyObservability);
+fastify.register(fastifyHelmet);
 
 fastify.get('/health', async (request, reply) => {
   return { status: 'ok' };

@@ -1,7 +1,18 @@
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('auth-service');
+
 import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
+import fastifyCookie from '@fastify/cookie';
+import fastifyCsrfProtection from '@fastify/csrf-protection';
 import zerodhaRoutes from './routes/zerodha';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: createLogger('auth-service') });
+
+fastify.register(fastifyObservability);
+fastify.register(fastifyHelmet);
+fastify.register(fastifyCookie);
+fastify.register(fastifyCsrfProtection);
 
 fastify.register(zerodhaRoutes);
 

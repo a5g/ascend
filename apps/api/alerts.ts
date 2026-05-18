@@ -2,14 +2,25 @@ import { FastifyInstance } from 'fastify';
 const { Alert } = require('@ascend/db');
 
 export default async function (fastify: FastifyInstance) {
-    fastify.post('/api/alerts', async (request, reply) => {
+    fastify.post('/api/alerts', {
+        schema: {
+            body: {
+                type: 'object',
+                required: ['symbol', 'condition'],
+                properties: {
+                    symbol: { type: 'string' },
+                    condition: { type: 'string' },
+                    threshold: { type: 'number' },
+                    reference_price: { type: 'number' },
+                    channels: { type: 'array', items: { type: 'string' } },
+                    active: { type: 'boolean' }
+                }
+            }
+        }
+    }, async (request, reply) => {
         // Mock user id extraction from JWT / auth middleware for now, defaulting to 1
         const userId = (request as any).user?.id || 1;
         const body: any = request.body;
-
-        if (!body.symbol || !body.condition) {
-            return reply.status(400).send({ error: 'Missing required fields' });
-        }
 
         // Limit to 50 active alerts per user
         const activeCount = await Alert.count({ where: { user_id: userId, active: true } });
@@ -43,7 +54,20 @@ export default async function (fastify: FastifyInstance) {
         return reply.send(alerts);
     });
 
-    fastify.put('/api/alerts/:id', async (request, reply) => {
+    fastify.put('/api/alerts/:id', {
+        schema: {
+            body: {
+                type: 'object',
+                properties: {
+                    condition: { type: 'string' },
+                    reference_price: { type: 'number' },
+                    threshold: { type: 'number' },
+                    channels: { type: 'array', items: { type: 'string' } },
+                    active: { type: 'boolean' }
+                }
+            }
+        }
+    }, async (request, reply) => {
         const userId = (request as any).user?.id || 1;
         const alertId = (request.params as any).id;
         const body: any = request.body;
@@ -54,6 +78,8 @@ export default async function (fastify: FastifyInstance) {
         }
 
         const updates: any = {};
+        if (body.condition !== undefined) updates.condition = body.condition;
+        if (body.reference_price !== undefined) updates.reference_price = body.reference_price;
         if (body.threshold !== undefined) updates.threshold = body.threshold;
         if (body.channels !== undefined) updates.channels = body.channels;
         if (body.active !== undefined) {

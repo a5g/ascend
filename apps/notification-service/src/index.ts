@@ -1,7 +1,14 @@
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('notification-service');
+
 import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
 import amqp from 'amqplib';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: createLogger('notification-service') });
+
+fastify.register(fastifyObservability);
+fastify.register(fastifyHelmet);
 
 export let connection: any;
 export let channel: amqp.Channel;
