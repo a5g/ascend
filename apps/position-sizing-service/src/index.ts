@@ -1,10 +1,17 @@
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('position-sizing-service');
+
 import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
 import calculateRoutes from './routes/calculate';
 import configsRoutes from './routes/configs';
 import * as jwt from 'jsonwebtoken';
 import fastifyCors from '@fastify/cors';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: createLogger('position-sizing-service') });
+
+fastify.register(fastifyObservability);
+fastify.register(fastifyHelmet);
 
 fastify.register(fastifyCors, {
   origin: '*', // Allow standalone frontend calls

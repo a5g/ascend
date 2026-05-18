@@ -1,10 +1,17 @@
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('dashboard-service');
+
 import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
 import dashboardRoutes from './routes/dashboard';
 import fastifyRedis from '@fastify/redis';
 import { Server } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 
-const fastify = Fastify({ logger: true });
+const fastify = Fastify({ logger: createLogger('dashboard-service') });
+
+fastify.register(fastifyObservability);
+fastify.register(fastifyHelmet);
 
 // Setup Redis
 fastify.register(fastifyRedis, {

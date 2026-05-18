@@ -14,7 +14,9 @@
   "dependencies": {
     "@ascend/crypto": "workspace:*",
     "@ascend/db": "workspace:*",
+    "@ascend/observability": "workspace:*",
     "@ascend/zerodha": "workspace:*",
+    "@fastify/helmet": "^13.0.2",
     "@sendgrid/mail": "^8.1.4",
     "amqplib": "^0.10.5",
     "fastify": "^5.8.5",

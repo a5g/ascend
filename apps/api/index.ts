@@ -1,6 +1,25 @@
-import Fastify from 'fastify';
+import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
+bootstrapService('api-gateway');
 
-const fastify = Fastify({ logger: true });
+import Fastify from 'fastify';
+import fastifyHelmet from '@fastify/helmet';
+
+const fastify = Fastify({ logger: createLogger('api-gateway') });
+
+fastify.register(fastifyObservability);
+
+fastify.register(fastifyHelmet, {
+  contentSecurityPolicy: {
+    directives: {
+      "script-src": ["'self'"],
+      "frame-src": ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+  },
+});
 
 fastify.get('/health', async (request, reply) => {
   return { status: 'ok' };

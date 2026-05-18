@@ -24,7 +24,14 @@ export default async function (fastify: FastifyInstance) {
         });
     });
 
-    fastify.put('/api/notifications/:id/read', async (request, reply) => {
+    fastify.put('/api/notifications/:id/read', {
+        schema: {
+            body: {
+                type: 'object',
+                properties: {}
+            }
+        }
+    }, async (request, reply) => {
         const userId = (request as any).user?.id || 1;
         const notificationId = (request.params as any).id;
 
@@ -37,7 +44,14 @@ export default async function (fastify: FastifyInstance) {
         return reply.send({ data: notification });
     });
 
-    fastify.put('/api/notifications/read-all', async (request, reply) => {
+    fastify.put('/api/notifications/read-all', {
+        schema: {
+            body: {
+                type: 'object',
+                properties: {}
+            }
+        }
+    }, async (request, reply) => {
         const userId = (request as any).user?.id || 1;
 
         await Notification.update(
