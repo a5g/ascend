@@ -1,15 +1,15 @@
 {
   "development": {
-    "username": "ascend",
-    "password": "ascend_password",
-    "database": "ascend_db",
+    "username": "anand",
+    "password": "password",
+    "database": "ascend",
     "host": "127.0.0.1",
     "dialect": "postgres"
   },
   "test": {
-    "username": "ascend",
-    "password": "ascend_password",
-    "database": "ascend_db_test",
+    "username": "anand",
+    "password": "password",
+    "database": "ascend",
     "host": "127.0.0.1",
     "dialect": "postgres"
   },

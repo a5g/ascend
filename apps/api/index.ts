@@ -4,7 +4,7 @@ bootstrapService('api-gateway');
 import Fastify from 'fastify';
 import fastifyHelmet from '@fastify/helmet';
 
-const fastify = Fastify({ logger: createLogger('api-gateway') });
+const fastify = Fastify({ loggerInstance: createLogger('api-gateway') });
 
 fastify.register(fastifyObservability);
 
