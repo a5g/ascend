@@ -54,7 +54,7 @@ const start = async () => {
         const { startConsumers } = require('./sender');
         await startConsumers();
 
-        await fastify.listen({ port: 3003, host: '0.0.0.0' });
+        await fastify.listen({ port: 3007, host: '0.0.0.0' });
     } catch (err) {
         fastify.log.error(err);
         process.exit(1);

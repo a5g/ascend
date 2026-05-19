@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "echo 'No tests specified yet'",
-    "build": "pnpm -r run build"
+    "build": "pnpm -r run build",
+    "db:migrate": "pnpm --filter @ascend/db exec sequelize-cli db:migrate"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
