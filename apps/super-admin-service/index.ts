@@ -18,11 +18,12 @@ fastify.get('/health', async (request, reply) => {
 fastify.get('/api/super-admin/services-health', async (request, reply) => {
   const services = [
     { name: 'Auth', url: 'http://localhost:3001/health' },
-    { name: 'User', url: 'http://localhost:3002/health' },
-    { name: 'Dashboard', url: 'http://localhost:3003/health' },
+    { name: 'Dashboard', url: 'http://localhost:3002/health' },
     { name: 'Order', url: 'http://localhost:3004/health' },
     { name: 'Portfolio', url: 'http://localhost:3005/health' },
     { name: 'Alerts', url: 'http://localhost:3000/health' },
+    { name: 'Position Sizing', url: 'http://localhost:3003/health' },
+    { name: 'Notification', url: 'http://localhost:3007/health' },
   ];
 
   const results = await Promise.all(
