@@ -4,8 +4,11 @@ import { encrypt } from '@ascend/crypto';
 import { User } from '@ascend/db';
 
 export default async function (fastify: FastifyInstance) {
+  if (!process.env.ZERODHA_API_KEY) {
+    throw new Error('ZERODHA_API_KEY is not defined');
+  }
   const kc = new KiteConnect({
-    api_key: process.env.ZERODHA_API_KEY || 'dummy_api_key',
+    api_key: process.env.ZERODHA_API_KEY,
   });
 
   fastify.post('/auth/zerodha/connect', async (request, reply) => {
@@ -17,9 +20,13 @@ export default async function (fastify: FastifyInstance) {
     const { request_token } = request.query as { request_token: string };
 
     try {
+      if (!process.env.ZERODHA_API_SECRET) {
+        throw new Error('ZERODHA_API_SECRET is not defined');
+      }
+
       const response = await kc.generateSession(
         request_token,
-        process.env.ZERODHA_API_SECRET || 'dummy_api_secret'
+        process.env.ZERODHA_API_SECRET
       );
 
       const accessToken = response.access_token;
