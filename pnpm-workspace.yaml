@@ -3,6 +3,7 @@ packages:
   - 'apps/*'
 allowBuilds:
   esbuild: true
+  protobufjs: false
 
 # pnpm options
 ignore-workspace-root-check: true
