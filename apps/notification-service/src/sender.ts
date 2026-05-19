@@ -3,6 +3,9 @@ import { ConsumeMessage } from 'amqplib';
 const { Notification } = require('@ascend/db');
 import sgMail from '@sendgrid/mail';
 import twilio from 'twilio';
+import { createLogger } from '@ascend/observability';
+
+const logger = createLogger('notification-service');
 
 // Configure external providers
 if (process.env.SENDGRID_API_KEY) {
@@ -31,14 +34,14 @@ export async function startConsumers() {
                 await handler(content);
                 channel.ack(msg);
             } catch (err) {
-                console.error('Error processing message from %s:', channelName, err);
+                logger.error({ err, channelName }, `Error processing message from ${channelName}`);
 
                 // Manual retry logic
                 const headers = msg.properties.headers || {};
                 const retryCount = (headers['x-retry-count'] || 0) + 1;
 
                 if (retryCount <= MAX_RETRIES) {
-                    console.log(`Retrying message. Attempt ${retryCount}`);
+                    logger.info(`Retrying message. Attempt ${retryCount}`);
 
                     // Exponential backoff
                     const delay = Math.pow(2, retryCount) * 1000;
@@ -49,7 +52,7 @@ export async function startConsumers() {
                         channel.ack(msg); // Ack original to replace it with new one
                     }, delay);
                 } else {
-                    console.log(`Max retries reached. Nacking message to DLX.`);
+                    logger.warn(`Max retries reached. Nacking message to DLX.`);
                     // Nack with requeue=false pushes to DLX
                     channel.nack(msg, false, false);
                 }
@@ -90,7 +93,7 @@ export async function startConsumers() {
 
     channel.consume('notification.email', handleMessage('email', async (content) => {
         if (!process.env.SENDGRID_API_KEY) {
-            console.log('Skipping email notification, SENDGRID_API_KEY absent.');
+            logger.info('Skipping email notification, SENDGRID_API_KEY absent.');
             return;
         }
 
@@ -107,7 +110,7 @@ export async function startConsumers() {
 
     channel.consume('notification.sms', handleMessage('sms', async (content) => {
         if (!twilioClient) {
-            console.log('Skipping SMS notification, Twilio config absent.');
+            logger.info('Skipping SMS notification, Twilio config absent.');
             return;
         }
 
