@@ -13,8 +13,17 @@ const fastify = Fastify({ logger: createLogger('position-sizing-service') });
 fastify.register(fastifyObservability);
 fastify.register(fastifyHelmet);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+      'http://localhost:3000',
+      'http://localhost:4004',
+      'http://localhost:4005',
+      'http://localhost:4006',
+    ];
+
 fastify.register(fastifyCors, {
-  origin: '*', // Allow standalone frontend calls
+  origin: allowedOrigins,
 });
 
 fastify.decorateRequest('user', null);
