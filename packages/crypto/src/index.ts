@@ -1,8 +1,10 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-// In a real app this should be securely managed. We use a fallback just to make tests/dev run.
-const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY || '12345678901234567890123456789012', 'utf8');
+if (!process.env.ENCRYPTION_KEY) {
+    throw new Error('ENCRYPTION_KEY environment variable is required');
+}
+const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
 const AUTH_TAG_LENGTH = 16;
 
 export const encrypt = (text: string) => {
