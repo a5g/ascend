@@ -46,7 +46,7 @@ const start = async () => {
             return next(new Error('Authentication error'));
         }
 
-        jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret', (err: any, decoded: any) => {
+        jwt.verify(token, process.env.JWT_SECRET as string, (err: any, decoded: any) => {
             if (err) return next(new Error('Authentication error'));
             socket.data.user = decoded;
             next();
