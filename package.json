@@ -7,9 +7,6 @@
     "build": "pnpm -r run build"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "protobufjs"
-    ],
     "overrides": {
       "serialize-javascript": "^7.0.5"
     }

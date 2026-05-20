@@ -13,8 +13,7 @@ const Dashboard: React.FC = () => {
   // Mock JWT Token
   const token = 'mock_jwt_token';
 
-  const { requestPositionsRefresh } = useWebSocket(token, (data) => {
-    console.log('WS update received', data);
+  const { requestPositionsRefresh } = useWebSocket(token, () => {
     // In real app, merge update to positions state
   });
 
