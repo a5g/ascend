@@ -24,16 +24,18 @@ export async function setupRabbitMQ() {
 
     // Channels Queues (with TTL and DLX)
     const queues = ['notification.in-app', 'notification.email', 'notification.sms'];
-    for (const q of queues) {
-        await channel.assertQueue(q, {
-            durable: true,
-            arguments: {
-                'x-message-ttl': 24 * 60 * 60 * 1000, // 24 hours TTL
-                'x-dead-letter-exchange': 'stockportal.dlx',
-                'x-dead-letter-routing-key': 'failed'
-            }
-        });
-    }
+    await Promise.all(
+        queues.map(q =>
+            channel.assertQueue(q, {
+                durable: true,
+                arguments: {
+                    'x-message-ttl': 24 * 60 * 60 * 1000, // 24 hours TTL
+                    'x-dead-letter-exchange': 'stockportal.dlx',
+                    'x-dead-letter-routing-key': 'failed'
+                }
+            })
+        )
+    );
 
     fastify.log.info('RabbitMQ setup complete.');
 }
