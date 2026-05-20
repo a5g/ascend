@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import pino from 'pino';
+
+const logger = pino({ name: 'mfe-alerts' });
 
 interface AlertData {
     id: number;
@@ -25,7 +28,7 @@ const AlertsTable = ({ refreshTrigger }: { refreshTrigger: number }) => {
                 setAlerts(data);
             }
         } catch (e) {
-            console.error('Failed to fetch alerts', e);
+            logger.error({ err: e }, 'Failed to fetch alerts');
         } finally {
             setLoading(false);
         }
@@ -44,7 +47,7 @@ const AlertsTable = ({ refreshTrigger }: { refreshTrigger: number }) => {
             });
             fetchAlerts();
         } catch (e) {
-            console.error('Failed to rearm', e);
+            logger.error({ err: e }, 'Failed to rearm');
         }
     };
 
@@ -54,7 +57,7 @@ const AlertsTable = ({ refreshTrigger }: { refreshTrigger: number }) => {
             await fetch(`/api/alerts/${id}`, { method: 'DELETE' });
             fetchAlerts();
         } catch (e) {
-            console.error('Failed to delete', e);
+            logger.error({ err: e }, 'Failed to delete');
         }
     };
 
