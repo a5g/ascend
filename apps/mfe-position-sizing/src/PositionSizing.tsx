@@ -34,7 +34,7 @@ export default function PositionSizing() {
 
   const getHeaders = () => {
     // In a real shell, a token would be in localStorage or Context.
-    const token = localStorage.getItem('token') || 'dummy-token';
+    const token = localStorage.getItem('token') || '';
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`

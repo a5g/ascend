@@ -39,12 +39,6 @@ fastify.addHook('preHandler', async (request, reply) => {
 
   const token = authHeader.split(' ')[1];
 
-  // For standalone local dev test purposes
-  if (token === 'dummy-token') {
-      (request as any).user = { id: 1, permissions: ['positions:read'] };
-      return;
-  }
-
   if (!process.env.JWT_SECRET) {
       fastify.log.error('JWT_SECRET missing from environment variables.');
       return reply.status(500).send({ error: 'Internal Server Error' });
