@@ -80,8 +80,10 @@ export default async function (fastify: FastifyInstance) {
 
     try {
         const accessToken = await getRealToken(userId);
-        const holdings = await holdingsBreaker.fire(userId.toString(), accessToken);
-        const positions = await positionsBreaker.fire(userId.toString(), accessToken);
+        const [holdings, positions] = await Promise.all([
+            holdingsBreaker.fire(userId.toString(), accessToken),
+            positionsBreaker.fire(userId.toString(), accessToken)
+        ]);
 
         let totalPnl = 0;
         if(holdings && holdings.length > 0) {
