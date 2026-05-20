@@ -29,6 +29,8 @@ export async function runEvaluator() {
         const symbols = [...new Set(activeAlerts.map((a: any) => a.symbol as string))];
         const quotes: any = await zc.getQuote(symbols as string[]);
 
+        const updatePromises: Promise<any>[] = [];
+
         for (const alert of activeAlerts) {
             const quote = quotes[alert.symbol];
             if (!quote) continue;
@@ -50,25 +52,30 @@ export async function runEvaluator() {
             }
 
             if (triggered) {
-                await alert.update({
-                    active: false,
-                    triggered_at: new Date()
-                });
+                const processTriggeredAlert = async () => {
+                    await alert.update({
+                        active: false,
+                        triggered_at: new Date()
+                    });
 
-                const channels = (alert.channels as string[]) || [];
-                for (const ch of channels) {
-                    const queueName = `notification.${ch}`;
-                    const payload = Buffer.from(JSON.stringify({
-                        alert_id: alert.id,
-                        user_id: alert.user_id,
-                        message: `Alert triggered for ${alert.symbol}: condition ${alert.condition} met.`
-                    }));
-                    if(channel) {
-                        channel.sendToQueue(queueName, payload);
+                    const channels = (alert.channels as string[]) || [];
+                    for (const ch of channels) {
+                        const queueName = `notification.${ch}`;
+                        const payload = Buffer.from(JSON.stringify({
+                            alert_id: alert.id,
+                            user_id: alert.user_id,
+                            message: `Alert triggered for ${alert.symbol}: condition ${alert.condition} met.`
+                        }));
+                        if(channel) {
+                            channel.sendToQueue(queueName, payload);
+                        }
                     }
-                }
+                };
+                updatePromises.push(processTriggeredAlert());
             }
         }
+
+        await Promise.all(updatePromises);
     } catch (e) {
         console.error('Error in evaluator run:', e);
     } finally {
