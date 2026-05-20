@@ -1,16 +1,14 @@
 import { initTracing } from './tracing';
 
 export const validateEncryptionKey = () => {
-    const key = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012';
-    if (process.env.NODE_ENV === 'production' && key === '12345678901234567890123456789012') {
-        throw new Error('Insecure ENCRYPTION_KEY used in production');
+    if (!process.env.ENCRYPTION_KEY) {
+        throw new Error('ENCRYPTION_KEY environment variable is required');
     }
 };
 
 export const validateJwtSecret = () => {
-    const secret = process.env.JWT_SECRET || 'secret';
-    if (process.env.NODE_ENV === 'production' && secret === 'secret') {
-        throw new Error('Insecure JWT_SECRET used in production');
+    if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET environment variable is required');
     }
 };
 
