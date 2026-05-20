@@ -13,8 +13,17 @@ const fastify = Fastify({ logger: createLogger('position-sizing-service') });
 fastify.register(fastifyObservability);
 fastify.register(fastifyHelmet);
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+      'http://localhost:3000',
+      'http://localhost:4004',
+      'http://localhost:4005',
+      'http://localhost:4006',
+    ];
+
 fastify.register(fastifyCors, {
-  origin: '*', // Allow standalone frontend calls
+  origin: allowedOrigins,
 });
 
 fastify.decorateRequest('user', null);
@@ -29,12 +38,6 @@ fastify.addHook('preHandler', async (request, reply) => {
   }
 
   const token = authHeader.split(' ')[1];
-
-  // For standalone local dev test purposes
-  if (token === 'dummy-token') {
-      (request as any).user = { id: 1, permissions: ['positions:read'] };
-      return;
-  }
 
   if (!process.env.JWT_SECRET) {
       fastify.log.error('JWT_SECRET missing from environment variables.');
