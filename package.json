@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "echo 'No tests specified yet'",
-    "build": "pnpm -r run build"
+    "build": "pnpm -r run build",
+    "dev": "pnpm --filter @ascend/mfe-alerts --filter @ascend/mfe-super-admin --filter @ascend/mfe-user-management --filter @ascend/web --parallel run dev"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
