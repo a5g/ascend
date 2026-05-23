@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../../.env' });
 import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
 bootstrapService('api-gateway');
 
