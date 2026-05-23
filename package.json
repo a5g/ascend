@@ -4,8 +4,13 @@
   "version": "1.0.0",
   "scripts": {
     "test": "echo 'No tests specified yet'",
+    "db:migrate": "pnpm --filter @ascend/db exec sequelize-cli db:migrate",
+    "db:seed": "pnpm --filter @ascend/db exec sequelize-cli db:seed:all",
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter @ascend/mfe-alerts --filter @ascend/mfe-super-admin --filter @ascend/mfe-user-management --filter @ascend/web --parallel run dev"
+    "dev": "pnpm --filter @ascend/mfe-dashboard --filter @ascend/mfe-position-sizing --filter @ascend/mfe-alerts --filter @ascend/mfe-user-management --filter @ascend/mfe-super-admin --filter @ascend/web --parallel run dev",
+    "api": "pnpm --filter @ascend/api run start",
+    "dashboard": "pnpm --filter @ascend/mfe-dashboard run server",
+    "ui": "pnpm --filter @ascend/web run dev"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

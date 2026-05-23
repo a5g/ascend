@@ -1,6 +1,9 @@
 import React, { useState, Suspense } from 'react';
 import './App.css';
 import { Login } from './components/Login';
+import BulkOrderPage from './components/BulkOrderPage';
+import DashboardPage from './components/DashboardPage';
+import { MfeErrorBoundary } from './components/MfeErrorBoundary';
 
 // Using module federation dynamic imports
 // @ts-ignore
@@ -59,44 +62,84 @@ function App() {
   }
 
   return (
-    <div>
-      <header style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem', background: '#0A192F', color: 'white', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div>
-           <button onClick={() => setRoute('home')} style={{ marginRight: '1rem', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer' }}>Log Out</button>
-           <button onClick={() => setRoute('alerts')} style={{ marginRight: '1rem', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer' }}>Alerts</button>
-           <button onClick={() => setRoute('admin')} style={{ marginRight: '1rem', background: 'transparent', color: 'white', border: 'none', cursor: 'pointer' }}>Admin (Super Admin)</button>
-           <button onClick={() => setRoute('users')} style={{ background: 'transparent', color: 'white', border: 'none', cursor: 'pointer' }}>Users (Manage)</button>
-        </div>
-        <Suspense fallback={<div>Loading bell...</div>}>
-          <NotificationBell />
-        </Suspense>
-      </header>
-
-      {route === 'dashboard' && (
-          <div style={{ padding: '2rem' }}>
-              <h1>Dashboard (Placeholder)</h1>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+        {/* Vertical sidebar nav */}
+        <nav style={{ width: '180px', background: '#0A192F', color: 'white', display: 'flex', flexDirection: 'column', padding: '1.5rem 0', flexShrink: 0, borderRight: '1px solid #1e3a5f', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', zIndex: 100 }}>
+          <div style={{ padding: '0 1rem 1.5rem', borderBottom: '1px solid #1e3a5f', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.15em', color: '#64748b', textTransform: 'uppercase' }}>Terminal Prime</div>
           </div>
-      )}
+          {[
+            { label: 'Dashboard', route: 'dashboard' },
+            { label: 'Orders',    route: 'orders'    },
+            { label: 'Alerts',    route: 'alerts'    },
+            { label: 'Super Admin', route: 'admin'   },
+            { label: 'Users',     route: 'users'     },
+          ].map(({ label, route: r }) => (
+            <button
+              key={r}
+              onClick={() => setRoute(r)}
+              style={{
+                background: route === r ? '#1e3a5f' : 'transparent',
+                color: route === r ? '#fff' : '#94a3b8',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: '0.65rem 1rem',
+                fontSize: '14px',
+                fontWeight: route === r ? 600 : 400,
+                borderLeft: route === r ? '3px solid #3b82f6' : '3px solid transparent',
+                transition: 'all 0.15s',
+              }}
+            >{label}</button>
+          ))}
+          <div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid #1e3a5f' }}>
+            <button
+              onClick={() => setRoute('home')}
+              style={{ background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontSize: '14px', padding: 0 }}
+            >Log Out</button>
+          </div>
+          <div style={{ padding: '0 1rem 1rem' }}>
+            <MfeErrorBoundary name="mfe_alerts">
+              <Suspense fallback={null}>
+                <NotificationBell />
+              </Suspense>
+            </MfeErrorBoundary>
+          </div>
+        </nav>
+
+        {/* Page content */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+
+      {route === 'dashboard' && <DashboardPage />}
+
+      {route === 'orders' && <BulkOrderPage />}
 
       {route === 'alerts' && (
           <div style={{ padding: '2rem' }}>
-              <Suspense fallback={<div>Loading alerts...</div>}>
-                <Alerts />
-              </Suspense>
+              <MfeErrorBoundary name="mfe_alerts" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>Alerts service unavailable.</div>}>
+                <Suspense fallback={<div>Loading alerts...</div>}>
+                  <Alerts />
+                </Suspense>
+              </MfeErrorBoundary>
           </div>
       )}
 
       {route === 'admin' && (
-          <Suspense fallback={<div>Loading Super Admin...</div>}>
-             <SuperAdmin />
-          </Suspense>
+          <MfeErrorBoundary name="mfe_super_admin" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>Super Admin service unavailable.</div>}>
+            <Suspense fallback={<div>Loading Super Admin...</div>}>
+               <SuperAdmin />
+            </Suspense>
+          </MfeErrorBoundary>
       )}
 
       {route === 'users' && (
-          <Suspense fallback={<div>Loading User Management...</div>}>
-             <UserManagement />
-          </Suspense>
+          <MfeErrorBoundary name="mfe_user_management" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>User Management service unavailable.</div>}>
+            <Suspense fallback={<div>Loading User Management...</div>}>
+               <UserManagement />
+            </Suspense>
+          </MfeErrorBoundary>
       )}
+        </div>
     </div>
   );
 }

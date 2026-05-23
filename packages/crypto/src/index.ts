@@ -1,13 +1,17 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-if (!process.env.ENCRYPTION_KEY) {
-    throw new Error('ENCRYPTION_KEY environment variable is required');
-}
-const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
 const AUTH_TAG_LENGTH = 16;
 
+const getKey = (): Buffer => {
+    if (!process.env.ENCRYPTION_KEY) {
+        throw new Error('ENCRYPTION_KEY environment variable is required');
+    }
+    return Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
+};
+
 export const encrypt = (text: string) => {
+    const ENCRYPTION_KEY = getKey();
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv, { authTagLength: AUTH_TAG_LENGTH });
 
@@ -20,6 +24,7 @@ export const encrypt = (text: string) => {
 };
 
 export const decrypt = (text: string) => {
+    const ENCRYPTION_KEY = getKey();
     const [ivHex, authTagHex, encryptedHex] = text.split(':');
 
     if (!ivHex || !authTagHex || !encryptedHex) {

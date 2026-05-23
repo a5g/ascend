@@ -1,12 +1,12 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
 
 const sequelize = new Sequelize(
-  process.env.POSTGRES_DB || 'ascend_db',
-  process.env.POSTGRES_USER || 'ascend',
-  process.env.POSTGRES_PASSWORD || 'ascend_password',
+  process.env.DB_NAME || process.env.POSTGRES_DB || 'ascend',
+  process.env.DB_USER || process.env.POSTGRES_USER || 'anand',
+  process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'password',
   {
-    host: process.env.POSTGRES_HOST || 'postgres',
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
+    host: process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
     dialect: 'postgres',
   }
 );
@@ -16,6 +16,11 @@ class User extends Model {
   public email!: string;
   public password_hash!: string;
   public role!: string;
+  public name!: string | null;
+  public kite_id!: string | null;
+  public capital!: number | null;
+  public is_active!: boolean;
+  public access_token!: string | null;
   public zerodha_access_token!: string | null;
 }
 
@@ -40,10 +45,31 @@ User.init(
       allowNull: false,
       defaultValue: 'user',
     },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    kite_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    capital: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: true,
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    access_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     zerodha_access_token: {
-        type: DataTypes.STRING,
-        allowNull: true,
-    }
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     sequelize,
