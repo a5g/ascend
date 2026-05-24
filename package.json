@@ -6,6 +6,7 @@
     "test": "echo 'No tests specified yet'",
     "db:migrate": "pnpm --filter @ascend/db exec sequelize-cli db:migrate",
     "db:seed": "pnpm --filter @ascend/db exec sequelize-cli db:seed:all",
+    "db:seed-securities": "node packages/db/scripts/seed-securities.js",
     "build": "pnpm -r run build",
     "dev": "pnpm --filter @ascend/mfe-dashboard --filter @ascend/mfe-position-sizing --filter @ascend/mfe-alerts --filter @ascend/mfe-user-management --filter @ascend/mfe-super-admin --filter @ascend/web --parallel run dev",
     "api": "pnpm --filter @ascend/api run start",

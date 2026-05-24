@@ -17,11 +17,11 @@ class User extends Model {
   public password_hash!: string;
   public role!: string;
   public name!: string | null;
-  public kite_id!: string | null;
+  public zerodha_user_id!: string | null;
   public capital!: number | null;
   public is_active!: boolean;
-  public access_token!: string | null;
   public zerodha_access_token!: string | null;
+  public zerodha_password!: string | null;
 }
 
 User.init(
@@ -49,7 +49,7 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    kite_id: {
+    zerodha_user_id: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -62,11 +62,11 @@ User.init(
       allowNull: false,
       defaultValue: false,
     },
-    access_token: {
+    zerodha_access_token: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    zerodha_access_token: {
+    zerodha_password: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -214,4 +214,64 @@ Notification.init(
   }
 );
 
-export { sequelize, User, PositionSizingConfig, Alert, Notification };
+class Security extends Model {
+  public id!: number;
+  public symbol!: string;
+  public name_of_company!: string;
+  public series!: string;
+  public date_of_listing!: string | null;
+  public paid_up_value!: number | null;
+  public market_lot!: number | null;
+  public isin_number!: string;
+  public face_value!: number | null;
+}
+
+Security.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    symbol: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    name_of_company: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    series: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    date_of_listing: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    paid_up_value: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: true,
+    },
+    market_lot: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    isin_number: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    face_value: {
+      type: DataTypes.DECIMAL(18, 2),
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'securities',
+  }
+);
+
+export { sequelize, User, PositionSizingConfig, Alert, Notification, Security };

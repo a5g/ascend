@@ -35,6 +35,9 @@ fastify.register(notificationsRoutes);
 import usersRoutes from './users';
 fastify.register(usersRoutes);
 
+import securitiesRoutes from './securities';
+fastify.register(securitiesRoutes);
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: '0.0.0.0' });

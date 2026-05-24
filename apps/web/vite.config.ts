@@ -37,7 +37,8 @@ export default defineConfig({
       shared: {
         react: { singleton: true },
         'react-dom': { singleton: true }
-      }
+      },
+      runtimePlugins: ['./src/mfe-resilience-plugin.ts'],
     })
   ],
   server: {

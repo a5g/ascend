@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface ActiveUser {
-  kite_id: string;
+  zerodha_user_id: string;
   name: string | null;
 }
 
@@ -84,8 +84,32 @@ export default function DashboardPage() {
   const [loadingUsers, setLoadingUsers]     = useState(true);
   const [loadingHoldings, setLoadingHoldings] = useState(false);
   const [holdingsError, setHoldingsError]   = useState<string | null>(null);
-  const [sortKey, setSortKey]   = useState<SortKey>('pnl_pct');
-  const [sortDir, setSortDir]   = useState<SortDir>('desc');
+  const [sortKey, setSortKey]     = useState<SortKey>('pnl_pct');
+  const [sortDir, setSortDir]     = useState<SortDir>('desc');
+  const [dropdownOpen, setDropdownOpen]   = useState(false);
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [filterText, setFilterText]       = useState('');
+  const dropdownRef  = useRef<HTMLDivElement>(null);
+  const searchRef    = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setSearchQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (dropdownOpen) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    } else {
+      setSearchQuery('');
+    }
+  }, [dropdownOpen]);
 
   // Fetch active users on mount
   useEffect(() => {
@@ -93,7 +117,7 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(({ data }) => {
         setActiveUsers(data ?? []);
-        if (data?.length) setSelectedKiteId(data[0].kite_id);
+        if (data?.length) setSelectedKiteId(data[0].zerodha_user_id);
       })
       .catch(() => setActiveUsers([]))
       .finally(() => setLoadingUsers(false));
@@ -155,25 +179,25 @@ export default function DashboardPage() {
         {/* Portfolio Summary Row */}
         <div className="flex gap-4">
 
-          {/* Profit Only — diagonal emerald gradient with green border */}
-          <div className="flex-1 bg-gradient-to-br from-emerald-500/[0.14] via-emerald-500/[0.06] to-transparent border border-emerald-500/30 rounded-sm p-4">
-            <div className="text-sm font-bold uppercase tracking-widest text-emerald-400 mb-4 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-emerald-400" style={{ fontSize: '16px' }}>trending_up</span>
+          {/* Profit Only */}
+          <div className="flex-1 bg-surface-container border border-outline-variant rounded-sm p-4">
+            <div className="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-4 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '16px' }}>trending_up</span>
               Profit Only
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-emerald-500/70 mb-1.5">Total Investment</div>
-                <div className="text-2xl font-semibold text-emerald-100 tabular-nums">{inrInt(summary.profit.totalInvested)}</div>
+                <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total Investment</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.profit.totalInvested)}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-emerald-500/70 mb-1.5">Current Value</div>
-                <div className="text-2xl font-semibold text-emerald-100 tabular-nums">{inrInt(summary.profit.totalCurVal)}</div>
+                <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Current Value</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.profit.totalCurVal)}</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-emerald-500/70 mb-1.5">Total P&amp;L</div>
-                <div className="text-2xl font-semibold text-emerald-400 tabular-nums">+{inrInt(summary.profit.totalPnl)}</div>
-                <div className="text-xs text-emerald-500 mt-1">+{summary.profit.totalPnlPct.toFixed(2)}%</div>
+                <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total P&amp;L</div>
+                <div className="text-2xl font-semibold tabular-nums text-secondary">+{inrInt(summary.profit.totalPnl)}</div>
+                <div className="text-xs mt-1 text-secondary">+{summary.profit.totalPnlPct.toFixed(2)}%</div>
               </div>
             </div>
           </div>
@@ -212,7 +236,7 @@ export default function DashboardPage() {
 
           {/* Holdings Table */}
           <div className="col-span-12 bg-surface-container border border-outline-variant rounded-sm flex flex-col">
-            <div className="p-4 border-b border-outline-variant flex flex-wrap justify-between items-center gap-3">
+            <div className="p-4 border-b border-outline-variant flex flex-wrap justify-between items-center gap-3 min-w-0">
               <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-on-surface">Portfolio Holdings</h2>
 
@@ -222,25 +246,112 @@ export default function DashboardPage() {
                     Kite User
                   </label>
                   {loadingUsers ? (
-                    <div className="h-8 w-44 bg-surface-container-high rounded animate-pulse" />
+                    <div className="h-8 w-52 bg-surface-container-high rounded-sm animate-pulse" />
                   ) : activeUsers.length === 0 ? (
                     <span className="text-sm text-on-surface-variant">No active users</span>
                   ) : (
-                    <select
-                      value={selectedKiteId}
-                      onChange={e => setSelectedKiteId(e.target.value)}
-                      className="bg-surface-container-lowest border border-outline-variant text-on-surface text-sm px-3 py-1.5 focus:border-primary focus:outline-none rounded-sm"
-                    >
-                      {activeUsers.map(u => (
-                        <option key={u.kite_id} value={u.kite_id}>
-                          {u.name ? `${u.name} (${u.kite_id})` : u.kite_id}
-                        </option>
-                      ))}
-                    </select>
+                    <div ref={dropdownRef} className="relative">
+                      {/* Trigger */}
+                      <button
+                        onClick={() => setDropdownOpen(o => !o)}
+                        className="flex items-center justify-between gap-3 min-w-52 px-3 py-2 text-sm text-on-surface bg-surface-container-high border border-outline-variant rounded-sm hover:border-primary transition-colors focus:outline-none focus:border-primary"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '16px' }}>person</span>
+                          <span className="truncate">
+                            {(() => {
+                              const u = activeUsers.find(u => u.zerodha_user_id === selectedKiteId);
+                              return u ? (u.name ? `${u.name} (${u.zerodha_user_id})` : u.zerodha_user_id) : selectedKiteId;
+                            })()}
+                          </span>
+                        </div>
+                        <span
+                          className="material-symbols-outlined text-on-surface-variant flex-shrink-0 transition-transform duration-200"
+                          style={{ fontSize: '18px', transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                        >expand_more</span>
+                      </button>
+
+                      {/* Dropdown list */}
+                      {dropdownOpen && (
+                        <div className="absolute left-0 top-full mt-1 min-w-full w-max z-50 bg-surface-container-high border border-outline-variant rounded-sm shadow-xl overflow-hidden">
+                          {/* Search input */}
+                          <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container">
+                            <span className="material-symbols-outlined text-on-surface-variant flex-shrink-0" style={{ fontSize: '16px' }}>search</span>
+                            <input
+                              ref={searchRef}
+                              type="text"
+                              value={searchQuery}
+                              onChange={e => setSearchQuery(e.target.value)}
+                              placeholder="Search user..."
+                              className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/50 outline-none"
+                            />
+                            {searchQuery && (
+                              <button onClick={() => setSearchQuery('')}>
+                                <span className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" style={{ fontSize: '15px' }}>close</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Filtered list */}
+                          <div className="max-h-60 overflow-y-auto">
+                            {(() => {
+                              const q = searchQuery.toLowerCase();
+                              const filtered = activeUsers.filter(u =>
+                                !q ||
+                                u.zerodha_user_id.toLowerCase().includes(q) ||
+                                (u.name ?? '').toLowerCase().includes(q)
+                              );
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="px-3 py-4 text-sm text-on-surface-variant text-center">
+                                    No users match "{searchQuery}"
+                                  </div>
+                                );
+                              }
+                              return filtered.map(u => {
+                                const label = u.name ? `${u.name} (${u.zerodha_user_id})` : u.zerodha_user_id;
+                                const isSelected = u.zerodha_user_id === selectedKiteId;
+                                return (
+                                  <button
+                                    key={u.zerodha_user_id}
+                                    onClick={() => { setSelectedKiteId(u.zerodha_user_id); setDropdownOpen(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors
+                                      ${isSelected
+                                        ? 'bg-primary/20 text-primary border-l-2 border-primary'
+                                        : 'text-on-surface hover:bg-surface-variant border-l-2 border-transparent'
+                                      }`}
+                                  >
+                                    <span className="material-symbols-outlined" style={{ fontSize: '15px', opacity: isSelected ? 1 : 0.4 }}>person</span>
+                                    {label}
+                                    {isSelected && (
+                                      <span className="material-symbols-outlined text-primary ml-auto" style={{ fontSize: '15px' }}>check</span>
+                                    )}
+                                  </button>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
 
+              {/* Instrument filter */}
+              <div className="flex items-center gap-2 w-64 bg-surface-container-high border border-outline-variant rounded-sm px-3 py-2 focus-within:border-primary transition-colors">
+                <span className="material-symbols-outlined text-on-surface-variant flex-shrink-0" style={{ fontSize: '16px' }}>search</span>
+                <input
+                  type="text"
+                  value={filterText}
+                  onChange={e => setFilterText(e.target.value)}
+                  placeholder="Filter by instrument..."
+                  className="bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none flex-1 min-w-0"
+                />
+                <button onClick={() => setFilterText('')} className="flex-shrink-0" style={{ visibility: filterText ? 'visible' : 'hidden' }}>
+                  <span className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" style={{ fontSize: '15px' }}>close</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -304,8 +415,8 @@ export default function DashboardPage() {
                         Select an active Kite user to view their holdings.
                       </td>
                     </tr>
-                  ) : (
-                    sortedHoldings.map(h => {
+                  ) : (<>
+                    {sortedHoldings.filter(h => h.tradingsymbol.toLowerCase().includes(filterText.toLowerCase())).map(h => {
                       const pnlPos  = h.pnl >= 0;
                       const pct     = h.average_price > 0 ? ((h.last_price - h.average_price) / h.average_price) * 100 : 0;
                       const dayPos  = h.day_change_percentage >= 0;
@@ -336,8 +447,35 @@ export default function DashboardPage() {
                           </td>
                         </tr>
                       );
-                    })
-                  )}
+                    })}
+
+                    {/* Summary row */}
+                    {(() => {
+                      const { totalInvested, totalCurVal, totalPnl, totalPnlPct } = summary.overall;
+                      const pnlPos = totalPnl >= 0;
+                      const pctPos = totalPnlPct >= 0;
+                      return (
+                        <tr className="border-t-2 border-outline-variant bg-surface-container-high font-semibold">
+                          <td className="p-3 text-on-surface text-sm uppercase tracking-wider">Total</td>
+                          <td className="p-3" />
+                          <td className="p-3" />
+                          <td className="p-3" />
+                          <td className="p-3 text-right text-on-surface">{inrInt(totalInvested)}</td>
+                          <td className="p-3 text-right text-on-surface">{inrInt(totalCurVal)}</td>
+                          <td className={`p-3 text-right ${pnlPos ? 'text-secondary' : 'text-tertiary'}`}>
+                            {pnlPos ? '+' : ''}{inrInt(totalPnl)}
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className={`px-2 py-0.5 rounded text-sm ${pctPos ? 'bg-secondary/10 text-secondary' : 'bg-tertiary/10 text-tertiary'}`}>
+                              {pctPos ? '+' : ''}{totalPnlPct.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="p-3" />
+                        </tr>
+                      );
+                    })()}
+                  </>)}
+
                 </tbody>
               </table>
             </div>

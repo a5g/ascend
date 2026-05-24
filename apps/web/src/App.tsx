@@ -3,17 +3,27 @@ import './App.css';
 import { Login } from './components/Login';
 import BulkOrderPage from './components/BulkOrderPage';
 import DashboardPage from './components/DashboardPage';
+import SecuritiesPage from './components/SecuritiesPage';
 import { MfeErrorBoundary } from './components/MfeErrorBoundary';
 
-// Using module federation dynamic imports
+// Wraps React.lazy so a failed remote (RUNTIME-008 / network error) resolves to
+// a null component instead of rejecting the promise and crashing the whole app.
+function safeLazy<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return React.lazy(() =>
+    factory().catch(() => ({ default: (() => null) as unknown as T }))
+  );
+}
+
 // @ts-ignore
-const NotificationBell = React.lazy(() => import('mfe_alerts/NotificationBell'));
+const NotificationBell = safeLazy(() => import('mfe_alerts/NotificationBell'));
 // @ts-ignore
-const Alerts = React.lazy(() => import('mfe_alerts/Alerts'));
+const Alerts = safeLazy(() => import('mfe_alerts/Alerts'));
 // @ts-ignore
-const SuperAdmin = React.lazy(() => import('mfe_super_admin/SuperAdmin'));
+const SuperAdmin = safeLazy(() => import('mfe_super_admin/SuperAdmin'));
 // @ts-ignore
-const UserManagement = React.lazy(() => import('mfe_user_management/UserManagement'));
+const UserManagement = safeLazy(() => import('mfe_user_management/UserManagement'));
 
 function App() {
   const [route, setRoute] = useState('home');
@@ -69,11 +79,12 @@ function App() {
             <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.15em', color: '#64748b', textTransform: 'uppercase' }}>Terminal Prime</div>
           </div>
           {[
-            { label: 'Dashboard', route: 'dashboard' },
-            { label: 'Orders',    route: 'orders'    },
-            { label: 'Alerts',    route: 'alerts'    },
-            { label: 'Super Admin', route: 'admin'   },
-            { label: 'Users',     route: 'users'     },
+            { label: 'Dashboard',   route: 'dashboard'   },
+            { label: 'Orders',      route: 'orders'      },
+            { label: 'Securities',  route: 'securities'  },
+            { label: 'Alerts',      route: 'alerts'      },
+            { label: 'Super Admin', route: 'admin'       },
+            { label: 'Users',       route: 'users'       },
           ].map(({ label, route: r }) => (
             <button
               key={r}
@@ -110,9 +121,11 @@ function App() {
         {/* Page content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
 
-      {route === 'dashboard' && <DashboardPage />}
+      {route === 'dashboard'  && <DashboardPage />}
 
-      {route === 'orders' && <BulkOrderPage />}
+      {route === 'orders'     && <BulkOrderPage />}
+
+      {route === 'securities' && <SecuritiesPage />}
 
       {route === 'alerts' && (
           <div style={{ padding: '2rem' }}>
