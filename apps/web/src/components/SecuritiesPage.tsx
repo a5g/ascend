@@ -48,11 +48,6 @@ const EMPTY_FORM = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(v: number | null) {
-  if (v == null) return '—';
-  return v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function fmtDate(s: string | null) {
   if (!s) return '—';
   const d = new Date(s);
@@ -97,9 +92,9 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
           series:          form.series.trim().toUpperCase(),
           isin_number:     form.isin_number.trim().toUpperCase(),
           date_of_listing: form.date_of_listing || null,
-          paid_up_value:   form.paid_up_value ? parseFloat(form.paid_up_value) : null,
-          market_lot:      form.market_lot     ? parseInt(form.market_lot, 10) : null,
-          face_value:      form.face_value     ? parseFloat(form.face_value)   : null,
+          paid_up_value:   form.paid_up_value ? parseInt(form.paid_up_value, 10) : null,
+          market_lot:      form.market_lot     ? parseInt(form.market_lot, 10)   : null,
+          face_value:      form.face_value     ? parseInt(form.face_value, 10)   : null,
         }),
       });
 
@@ -121,7 +116,7 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
   const field = (
     label: string,
     key: keyof typeof EMPTY_FORM,
-    opts?: { type?: string; placeholder?: string; mandatory?: boolean; wide?: boolean }
+    opts?: { type?: string; placeholder?: string; mandatory?: boolean; wide?: boolean; step?: string }
   ) => (
     <div className={`flex flex-col gap-1.5 ${opts?.wide ? 'col-span-2' : ''}`}>
       <label className="text-xs font-medium text-on-surface-variant uppercase tracking-wider">
@@ -130,6 +125,7 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
       <input
         type={opts?.type ?? 'text'}
         placeholder={opts?.placeholder}
+        step={opts?.step}
         value={form[key]}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
         style={opts?.type === 'date' ? { colorScheme: 'dark' } : undefined}
@@ -169,9 +165,9 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
           {field('Name of Company', 'name_of_company', { placeholder: 'Reliance Industries Ltd', mandatory: true, wide: true })}
           {field('ISIN Number',     'isin_number',     { placeholder: 'INE002A01018',       mandatory: true, wide: true })}
           {field('Date of Listing', 'date_of_listing', { type: 'date' })}
-          {field('Paid Up Value',   'paid_up_value',   { type: 'number', placeholder: '10' })}
-          {field('Market Lot',      'market_lot',      { type: 'number', placeholder: '1'  })}
-          {field('Face Value',      'face_value',      { type: 'number', placeholder: '10' })}
+          {field('Paid Up Value',   'paid_up_value',   { type: 'number', placeholder: '10', step: '1' })}
+          {field('Market Lot',      'market_lot',      { type: 'number', placeholder: '1',  step: '1' })}
+          {field('Face Value',      'face_value',      { type: 'number', placeholder: '10', step: '1' })}
         </div>
 
         {/* Error */}
@@ -408,9 +404,10 @@ export default function SecuritiesPage() {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveSuggestion(i => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' && activeSuggestion >= 0) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
-      selectSuggestion(suggestions[activeSuggestion]);
+      const target = activeSuggestion >= 0 ? suggestions[activeSuggestion] : suggestions[0];
+      if (target) selectSuggestion(target);
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
     }
@@ -592,10 +589,10 @@ export default function SecuritiesPage() {
                       <td className="p-3 text-sm text-on-surface">{s.name_of_company}</td>
                       <td className="p-3 text-sm text-on-surface-variant">{s.series}</td>
                       <td className="p-3 text-sm text-on-surface-variant whitespace-nowrap">{fmtDate(s.date_of_listing)}</td>
-                      <td className="p-3 text-sm text-on-surface tabular-nums text-right">{fmt(s.paid_up_value)}</td>
+                      <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.paid_up_value != null ? s.paid_up_value.toLocaleString('en-IN') : '—'}</td>
                       <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.market_lot ?? '—'}</td>
                       <td className="p-3 text-sm font-mono text-on-surface-variant whitespace-nowrap">{s.isin_number}</td>
-                      <td className="p-3 text-sm text-on-surface tabular-nums text-right">{fmt(s.face_value)}</td>
+                      <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.face_value != null ? s.face_value.toLocaleString('en-IN') : '—'}</td>
                       <td className="p-3 text-center">
                         <button
                           onClick={() => setDeleteTarget(s)}

@@ -251,7 +251,7 @@ Security.init(
       allowNull: true,
     },
     paid_up_value: {
-      type: DataTypes.DECIMAL(18, 2),
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     market_lot: {
@@ -264,7 +264,7 @@ Security.init(
       unique: true,
     },
     face_value: {
-      type: DataTypes.DECIMAL(18, 2),
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
   },

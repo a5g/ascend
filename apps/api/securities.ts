@@ -63,9 +63,9 @@ export default async function securitiesRoutes(fastify: FastifyInstance) {
                 series:          series.trim().toUpperCase(),
                 isin_number:     isin_number.trim().toUpperCase(),
                 date_of_listing: body.date_of_listing || null,
-                paid_up_value:   body.paid_up_value   ?? null,
-                market_lot:      body.market_lot       ?? null,
-                face_value:      body.face_value       ?? null,
+                paid_up_value:   body.paid_up_value != null ? Math.trunc(Number(body.paid_up_value)) : null,
+                market_lot:      body.market_lot     != null ? Math.trunc(Number(body.market_lot))     : null,
+                face_value:      body.face_value     != null ? Math.trunc(Number(body.face_value))     : null,
             });
             return reply.status(201).send({ data: security });
         } catch (err: any) {

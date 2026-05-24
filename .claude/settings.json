@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm --filter @ascend/mfe-alerts run build)"
+      "Bash(pnpm --filter @ascend/mfe-alerts run build)",
+      "Bash(node -e ' *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

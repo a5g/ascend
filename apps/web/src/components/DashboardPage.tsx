@@ -89,8 +89,11 @@ export default function DashboardPage() {
   const [dropdownOpen, setDropdownOpen]   = useState(false);
   const [searchQuery, setSearchQuery]     = useState('');
   const [filterText, setFilterText]       = useState('');
+  const [focusedUserIndex, setFocusedUserIndex] = useState(-1);
   const dropdownRef  = useRef<HTMLDivElement>(null);
   const searchRef    = useRef<HTMLInputElement>(null);
+  const userListRef  = useRef<HTMLDivElement>(null);
+  const userItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -108,8 +111,20 @@ export default function DashboardPage() {
       setTimeout(() => searchRef.current?.focus(), 50);
     } else {
       setSearchQuery('');
+      setFocusedUserIndex(-1);
     }
   }, [dropdownOpen]);
+
+  useEffect(() => {
+    setFocusedUserIndex(-1);
+    userItemRefs.current = [];
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (focusedUserIndex >= 0 && userItemRefs.current[focusedUserIndex]) {
+      userItemRefs.current[focusedUserIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedUserIndex]);
 
   // Fetch active users on mount
   useEffect(() => {
@@ -171,6 +186,31 @@ export default function DashboardPage() {
       profit:  calc(holdings.filter(h => h.pnl > 0)),
     };
   }, [holdings]);
+
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return activeUsers.filter(u =>
+      !q ||
+      u.zerodha_user_id.toLowerCase().includes(q) ||
+      (u.name ?? '').toLowerCase().includes(q)
+    );
+  }, [activeUsers, searchQuery]);
+
+  function handleUserKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedUserIndex(i => Math.min(i + 1, filteredUsers.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedUserIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = focusedUserIndex >= 0 ? filteredUsers[focusedUserIndex] : filteredUsers[0];
+      if (target) { setSelectedKiteId(target.zerodha_user_id); setDropdownOpen(false); }
+    } else if (e.key === 'Escape') {
+      setDropdownOpen(false);
+    }
+  }
 
   return (
     <div className="p-6 min-h-full overflow-y-auto bg-background">
@@ -282,6 +322,7 @@ export default function DashboardPage() {
                               type="text"
                               value={searchQuery}
                               onChange={e => setSearchQuery(e.target.value)}
+                              onKeyDown={handleUserKeyDown}
                               placeholder="Search user..."
                               className="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/50 outline-none"
                             />
@@ -293,43 +334,37 @@ export default function DashboardPage() {
                           </div>
 
                           {/* Filtered list */}
-                          <div className="max-h-60 overflow-y-auto">
-                            {(() => {
-                              const q = searchQuery.toLowerCase();
-                              const filtered = activeUsers.filter(u =>
-                                !q ||
-                                u.zerodha_user_id.toLowerCase().includes(q) ||
-                                (u.name ?? '').toLowerCase().includes(q)
+                          <div ref={userListRef} className="max-h-60 overflow-y-auto">
+                            {filteredUsers.length === 0 ? (
+                              <div className="px-3 py-4 text-sm text-on-surface-variant text-center">
+                                No users match "{searchQuery}"
+                              </div>
+                            ) : filteredUsers.map((u, i) => {
+                              const label = u.name ? `${u.name} (${u.zerodha_user_id})` : u.zerodha_user_id;
+                              const isSelected = u.zerodha_user_id === selectedKiteId;
+                              const isFocused = focusedUserIndex === i;
+                              return (
+                                <button
+                                  key={u.zerodha_user_id}
+                                  ref={el => { userItemRefs.current[i] = el; }}
+                                  onClick={() => { setSelectedKiteId(u.zerodha_user_id); setDropdownOpen(false); }}
+                                  onMouseEnter={() => setFocusedUserIndex(i)}
+                                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors border-l-2
+                                    ${isSelected
+                                      ? 'bg-primary/20 text-primary border-primary'
+                                      : isFocused
+                                        ? 'bg-surface-variant text-on-surface border-primary'
+                                        : 'text-on-surface border-transparent'
+                                    }`}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: '15px', opacity: isSelected ? 1 : 0.4 }}>person</span>
+                                  {label}
+                                  {isSelected && (
+                                    <span className="material-symbols-outlined text-primary ml-auto" style={{ fontSize: '15px' }}>check</span>
+                                  )}
+                                </button>
                               );
-                              if (filtered.length === 0) {
-                                return (
-                                  <div className="px-3 py-4 text-sm text-on-surface-variant text-center">
-                                    No users match "{searchQuery}"
-                                  </div>
-                                );
-                              }
-                              return filtered.map(u => {
-                                const label = u.name ? `${u.name} (${u.zerodha_user_id})` : u.zerodha_user_id;
-                                const isSelected = u.zerodha_user_id === selectedKiteId;
-                                return (
-                                  <button
-                                    key={u.zerodha_user_id}
-                                    onClick={() => { setSelectedKiteId(u.zerodha_user_id); setDropdownOpen(false); }}
-                                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left transition-colors
-                                      ${isSelected
-                                        ? 'bg-primary/20 text-primary border-l-2 border-primary'
-                                        : 'text-on-surface hover:bg-surface-variant border-l-2 border-transparent'
-                                      }`}
-                                  >
-                                    <span className="material-symbols-outlined" style={{ fontSize: '15px', opacity: isSelected ? 1 : 0.4 }}>person</span>
-                                    {label}
-                                    {isSelected && (
-                                      <span className="material-symbols-outlined text-primary ml-auto" style={{ fontSize: '15px' }}>check</span>
-                                    )}
-                                  </button>
-                                );
-                              });
-                            })()}
+                            })}
                           </div>
                         </div>
                       )}

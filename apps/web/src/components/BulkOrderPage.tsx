@@ -1,4 +1,160 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
+interface SecurityOption {
+  id: number;
+  symbol: string;
+  name_of_company: string;
+  series: string;
+}
+
+function SecurityDropdown({ value, onChange }: { value: SecurityOption | null; onChange: (s: SecurityOption | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SecurityOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (open && inputRef.current) inputRef.current.focus();
+    if (!open) setFocusedIndex(-1);
+  }, [open]);
+
+  useEffect(() => {
+    setFocusedIndex(-1);
+    itemRefs.current = [];
+    if (!query.trim()) { setResults([]); return; }
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(`/api/securities?search=${encodeURIComponent(query.trim())}&page=1`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => { setResults((data.data ?? []).slice(0, 10)); setLoading(false); })
+      .catch(() => setLoading(false));
+    return () => controller.abort();
+  }, [query]);
+
+  useEffect(() => {
+    if (focusedIndex >= 0 && itemRefs.current[focusedIndex]) {
+      itemRefs.current[focusedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusedIndex]);
+
+  function select(s: SecurityOption) {
+    onChange(s);
+    setOpen(false);
+    setQuery('');
+    setResults([]);
+    setFocusedIndex(-1);
+  }
+
+  function handleButtonClick() {
+    setOpen(o => !o);
+    if (!open) { setQuery(''); setResults([]); }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.min(i + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const target = focusedIndex >= 0 ? results[focusedIndex] : results[0];
+      if (target) select(target);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative w-56">
+      <button
+        type="button"
+        onClick={handleButtonClick}
+        className="w-full flex items-center justify-between bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none hover:border-primary transition-colors"
+      >
+        <span className={value ? 'text-on-surface' : 'text-on-surface-variant text-xs'}>
+          {value ? value.symbol : 'Select security…'}
+        </span>
+        <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '16px' }}>
+          {open ? 'expand_less' : 'expand_more'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full left-0 w-72 bg-surface-container border border-outline-variant shadow-lg mt-0.5">
+          <div className="p-2 border-b border-outline-variant">
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search symbol or company…"
+              className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface text-sm px-2 py-1.5 focus:border-primary focus:outline-none font-data-mono"
+            />
+          </div>
+          <div ref={listRef} className="max-h-48 overflow-y-auto">
+            {loading && (
+              <div className="px-3 py-2 text-[11px] text-on-surface-variant font-label-caps">Searching…</div>
+            )}
+            {!loading && query.trim() === '' && (
+              <div className="px-3 py-2 text-[11px] text-on-surface-variant font-label-caps">Type to search securities</div>
+            )}
+            {!loading && query.trim() !== '' && results.length === 0 && (
+              <div className="px-3 py-2 text-[11px] text-on-surface-variant font-label-caps">No results found</div>
+            )}
+            {results.map((s, i) => (
+              <button
+                key={s.id}
+                ref={el => { itemRefs.current[i] = el; }}
+                type="button"
+                onClick={() => select(s)}
+                onMouseEnter={() => setFocusedIndex(i)}
+                className={`w-full text-left px-3 py-2 flex flex-col gap-0.5 transition-colors border-l-2 ${
+                  value?.id === s.id
+                    ? 'bg-primary/20 text-primary border-l-primary'
+                    : focusedIndex === i
+                      ? 'bg-surface-container-high border-l-primary text-on-surface'
+                      : 'border-l-transparent text-on-surface'
+                }`}
+              >
+                <span className="font-data-mono text-sm font-bold">{s.symbol}</span>
+                <span className="text-[10px] text-on-surface-variant truncate">{s.name_of_company}</span>
+              </button>
+            ))}
+          </div>
+          {value && (
+            <div className="border-t border-outline-variant p-1">
+              <button
+                type="button"
+                onClick={() => { onChange(null); setOpen(false); setQuery(''); setResults([]); }}
+                className="w-full text-center text-[10px] font-label-caps text-on-surface-variant hover:text-tertiary py-1 transition-colors"
+              >
+                Clear selection
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const BUY_ROWS = [
   { account: 'ACC_9821-X', firm: 'Alpha Strategies LP', qty: 500, price: 174.55, margin: '$17,455.00' },
@@ -24,6 +180,19 @@ export default function BulkOrderPage() {
   const [buySelected, setBuySelected] = useState<boolean[]>(BUY_ROWS.map(() => true));
   const [sellSelected, setSellSelected] = useState<boolean[]>(SELL_ROWS.map(() => false));
 
+  const [selectedSecurity, setSelectedSecurity] = useState<SecurityOption | null>(null);
+
+  // Position Sizing Calculator — store as strings so trailing dots aren't eaten
+  const [entryPrice, setEntryPrice] = useState('');
+  const [exitPrice, setExitPrice]   = useState('');
+  const [riskPct, setRiskPct]       = useState(1.00);
+
+  const entryNum = parseFloat(entryPrice);
+  const exitNum  = parseFloat(exitPrice);
+  const hasValidInputs = entryPrice.trim() !== '' && exitPrice.trim() !== '' && !isNaN(entryNum) && !isNaN(exitNum) && entryNum > 0 && riskPct > 0;
+  const pnlPct = hasValidInputs ? ((exitNum - entryNum) / entryNum) * 100 : null;
+  const positionSize = pnlPct != null && pnlPct !== 0 ? (100 / (pnlPct * -1)) * riskPct : null;
+
   const allBuySelected = buySelected.every(Boolean);
   const allSellSelected = sellSelected.every(Boolean);
 
@@ -40,14 +209,8 @@ export default function BulkOrderPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-container border border-outline-variant p-4 gap-4">
           <div className="flex items-center gap-6">
             <div>
-              <label className="block font-label-caps text-[10px] text-on-surface-variant mb-1 uppercase">Global Symbol</label>
-              <div className="relative w-48">
-                <input
-                  className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 focus:border-primary focus:outline-none text-sm"
-                  defaultValue="TSLA.O"
-                />
-                <span className="absolute right-2 top-1.5 font-label-caps text-[9px] bg-surface-variant px-1 rounded">NASDAQ</span>
-              </div>
+              <label className="block font-label-caps text-[10px] text-on-surface-variant mb-1 uppercase">Security</label>
+              <SecurityDropdown value={selectedSecurity} onChange={setSelectedSecurity} />
             </div>
             <div className="h-10 w-px bg-outline-variant/30" />
             <div className="flex gap-6">
@@ -111,43 +274,78 @@ export default function BulkOrderPage() {
               <div className="space-y-6 mt-6">
                 {/* Position Sizing Calculator */}
                 <section className="bg-surface-container border border-outline-variant">
-                  <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-sm">calculate</span>
-                    <h2 className="font-label-caps text-label-caps text-on-surface uppercase">Position Sizing Calculator</h2>
+                  <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-sm">calculate</span>
+                      <h2 className="font-label-caps text-label-caps text-on-surface uppercase">Position Sizing Calculator</h2>
+                    </div>
+                    <button
+                      onClick={() => { setEntryPrice(''); setExitPrice(''); setRiskPct(1.00); }}
+                      className="flex items-center gap-1 font-label-caps text-[10px] uppercase text-on-surface-variant hover:text-on-surface border border-outline-variant hover:border-outline bg-surface-container px-2 py-1 transition-colors"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>restart_alt</span>
+                      Reset
+                    </button>
                   </div>
-                  <div className="p-4 grid grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                      <label className="block font-label-caps text-[9px] text-on-surface-variant uppercase">Risk Per Trade (%)</label>
-                      <div className="relative">
-                        <input
-                          className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
-                          type="number"
-                          step="0.25"
-                          defaultValue="1.00"
-                        />
-                        <span className="absolute right-3 top-1.5 text-[10px] text-on-surface-variant">%</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block font-label-caps text-[9px] text-on-surface-variant uppercase">Entry Price</label>
-                      <input
-                        className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
-                        type="number"
-                        defaultValue="174.55"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block font-label-caps text-[9px] text-on-surface-variant uppercase">Stop Loss Price</label>
-                      <input
-                        className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
-                        type="number"
-                        defaultValue="171.20"
-                      />
-                    </div>
-                    <div className="bg-surface-container-low border border-outline-variant/30 p-2 flex flex-col justify-center items-center">
-                      <span className="font-label-caps text-[9px] text-primary uppercase">Calculated Shares</span>
-                      <span className="font-data-mono text-lg font-bold text-on-surface">2,450</span>
-                    </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-surface-container-high border-b border-outline-variant font-label-caps text-[10px] text-on-surface-variant uppercase">
+                          <th className="px-4 py-2">Entry Price</th>
+                          <th className="px-4 py-2">Stop Loss / Exit Price</th>
+                          <th className="px-4 py-2">Risk Per Trade (%)</th>
+                          <th className="px-4 py-2 text-right">P&amp;L %</th>
+                          <th className="px-4 py-2 text-right">Position Size</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-data-mono text-sm">
+                        <tr className="hover:bg-surface-container-high transition-colors">
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={entryPrice}
+                              onChange={e => setEntryPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                              className="w-36 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={exitPrice}
+                              onChange={e => setExitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                              className="w-36 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="relative inline-flex items-center">
+                              <input
+                                type="number"
+                                step="0.25"
+                                min="0"
+                                value={riskPct}
+                                onChange={e => setRiskPct(Number(e.target.value))}
+                                className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 pr-6 text-sm focus:border-primary focus:outline-none"
+                              />
+                              <span className="absolute right-2 text-[10px] text-on-surface-variant pointer-events-none">%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {pnlPct != null ? (
+                              <span className={`px-2 py-0.5 rounded text-sm ${pnlPct >= 0 ? 'bg-secondary/10 text-secondary' : 'bg-tertiary/10 text-tertiary'}`}>
+                                {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                              </span>
+                            ) : (
+                              <span className="text-on-surface-variant text-sm">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-on-surface">
+                            {positionSize != null ? `${positionSize.toFixed(2)}%` : <span className="text-on-surface-variant font-normal">—</span>}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </section>
 

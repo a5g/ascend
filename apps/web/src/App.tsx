@@ -4,6 +4,7 @@ import { Login } from './components/Login';
 import BulkOrderPage from './components/BulkOrderPage';
 import DashboardPage from './components/DashboardPage';
 import SecuritiesPage from './components/SecuritiesPage';
+import UsersPage from './components/UsersPage';
 import { MfeErrorBoundary } from './components/MfeErrorBoundary';
 
 // Wraps React.lazy so a failed remote (RUNTIME-008 / network error) resolves to
@@ -22,8 +23,6 @@ const NotificationBell = safeLazy(() => import('mfe_alerts/NotificationBell'));
 const Alerts = safeLazy(() => import('mfe_alerts/Alerts'));
 // @ts-ignore
 const SuperAdmin = safeLazy(() => import('mfe_super_admin/SuperAdmin'));
-// @ts-ignore
-const UserManagement = safeLazy(() => import('mfe_user_management/UserManagement'));
 
 function App() {
   const [route, setRoute] = useState('home');
@@ -33,9 +32,7 @@ function App() {
       <div className="dark flex flex-col min-h-screen font-body-md text-on-background selection:bg-primary-container selection:text-on-primary-container">
         {/* TopAppBar Component */}
         <header className="bg-slate-950 flex justify-between items-center px-6 h-14 w-full docked full-width top-0 border-b border-slate-800 transition-colors duration-150">
-          <div className="font-inter tracking-tight text-lg font-bold tracking-widest text-slate-50 uppercase">
-            TERMINAL PRIME
-          </div>
+          <img src="/ASCEND.png" alt="Ascend Wealth Management" style={{ height: '38px', width: '38px', borderRadius: '8px', objectFit: 'cover' }} />
           <div className="flex items-center gap-4">
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="help">help</span>
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="security">security</span>
@@ -50,7 +47,12 @@ function App() {
             <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-on-primary-fixed-variant rounded-full blur-[100px] translate-y-1/3 -translate-x-1/4"></div>
           </div>
 
-          <div className="w-full max-w-md z-10">
+          <div className="w-full max-w-md z-10 flex flex-col items-center">
+            <img
+              src="/ASCEND.png"
+              alt="Ascend Wealth Management"
+              style={{ height: '140px', width: '140px', borderRadius: '20px', objectFit: 'cover', marginBottom: '2rem', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+            />
             <Login onLogin={() => setRoute('dashboard')} />
           </div>
         </main>
@@ -58,7 +60,7 @@ function App() {
         {/* Footer Component */}
         <footer className="bg-slate-950 flex flex-col md:flex-row justify-between items-center px-6 py-4 w-full gap-4 docked full-width bottom-0 border-t border-slate-800 transition-opacity duration-200">
           <div className="font-inter uppercase tracking-wider text-[10px] text-slate-500">
-            © 2024 TERMINAL PRIME INC. ALL RIGHTS RESERVED. INSTITUTIONAL GRADE SECURITY.
+            © 2025 ASCEND WEALTH MANAGEMENT. ALL RIGHTS RESERVED.
           </div>
           <nav className="flex gap-6">
             <a className="font-inter uppercase tracking-wider text-[10px] text-slate-500 hover:text-blue-400 transition-colors" href="#">Privacy Policy</a>
@@ -75,8 +77,12 @@ function App() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
         {/* Vertical sidebar nav */}
         <nav style={{ width: '180px', background: '#0A192F', color: 'white', display: 'flex', flexDirection: 'column', padding: '1.5rem 0', flexShrink: 0, borderRight: '1px solid #1e3a5f', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', zIndex: 100 }}>
-          <div style={{ padding: '0 1rem 1.5rem', borderBottom: '1px solid #1e3a5f', marginBottom: '0.5rem' }}>
-            <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.15em', color: '#64748b', textTransform: 'uppercase' }}>Terminal Prime</div>
+          <div style={{ padding: '0.75rem 1rem 1.25rem', borderBottom: '1px solid #1e3a5f', marginBottom: '0.5rem' }}>
+            <img
+              src="/ASCEND.png"
+              alt="Ascend Wealth Management"
+              style={{ width: '100%', height: 'auto', borderRadius: '10px', display: 'block' }}
+            />
           </div>
           {[
             { label: 'Dashboard',   route: 'dashboard'   },
@@ -145,13 +151,7 @@ function App() {
           </MfeErrorBoundary>
       )}
 
-      {route === 'users' && (
-          <MfeErrorBoundary name="mfe_user_management" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>User Management service unavailable.</div>}>
-            <Suspense fallback={<div>Loading User Management...</div>}>
-               <UserManagement />
-            </Suspense>
-          </MfeErrorBoundary>
-      )}
+      {route === 'users' && <UsersPage />}
         </div>
     </div>
   );

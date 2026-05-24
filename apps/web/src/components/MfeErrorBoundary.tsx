@@ -17,12 +17,22 @@ export class MfeErrorBoundary extends React.Component<Props, State> {
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+  static getDerivedStateFromError(error: unknown): State {
+    // Normalize non-standard MF error objects (Proxies, circular refs) into a
+    // plain Error so React's own console.error call never throws.
+    const normalized =
+      error instanceof Error
+        ? error
+        : new Error(MfeErrorBoundary.safeString(error));
+    return { hasError: true, error: normalized };
   }
 
-  componentDidCatch(error: Error) {
-    console.warn(`[MFE] ${this.props.name} failed to load:`, error.message);
+  componentDidCatch(error: unknown) {
+    console.warn(`[MFE] ${this.props.name} failed to load:`, MfeErrorBoundary.safeString(error));
+  }
+
+  private static safeString(e: unknown): string {
+    try { return String((e as any)?.message ?? e); } catch { return '(unserializable error)'; }
   }
 
   render() {
