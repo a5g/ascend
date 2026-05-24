@@ -203,7 +203,7 @@ export default function BulkOrderPage() {
 
   return (
     <div className="p-6 min-h-full overflow-y-auto bg-background">
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto space-y-6">
 
         {/* Ticker / Symbol Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-container border border-outline-variant p-4 gap-4">

@@ -1,4 +1,4 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import './App.css';
 import { Login } from './components/Login';
 import BulkOrderPage from './components/BulkOrderPage';
@@ -25,7 +25,23 @@ const Alerts = safeLazy(() => import('mfe_alerts/Alerts'));
 const SuperAdmin = safeLazy(() => import('mfe_super_admin/SuperAdmin'));
 
 function App() {
-  const [route, setRoute] = useState('home');
+  // Check localStorage for login state on mount
+  const [route, setRoute] = useState(() => {
+    const loggedIn = localStorage.getItem('ascend_logged_in');
+    return loggedIn === 'true' ? 'dashboard' : 'home';
+  });
+
+  // When logging in, persist login state
+  const handleLogin = () => {
+    localStorage.setItem('ascend_logged_in', 'true');
+    setRoute('dashboard');
+  };
+
+  // When logging out, clear login state
+  const handleLogout = () => {
+    localStorage.removeItem('ascend_logged_in');
+    setRoute('home');
+  };
 
   if (route === 'home') {
     return (
@@ -34,6 +50,12 @@ function App() {
         <header className="bg-slate-950 flex justify-between items-center px-6 h-14 w-full docked full-width top-0 border-b border-slate-800 transition-colors duration-150">
           <img src="/ASCEND.png" alt="Ascend Wealth Management" style={{ height: '38px', width: '38px', borderRadius: '8px', objectFit: 'cover' }} />
           <div className="flex items-center gap-4">
+            <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" title="Alerts" style={{ fontSize: '24px' }}>notifications</span>
+            <MfeErrorBoundary name="mfe_alerts">
+              <Suspense fallback={null}>
+                <NotificationBell />
+              </Suspense>
+            </MfeErrorBoundary>
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="help">help</span>
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="security">security</span>
           </div>
@@ -53,7 +75,7 @@ function App() {
               alt="Ascend Wealth Management"
               style={{ height: '140px', width: '140px', borderRadius: '20px', objectFit: 'cover', marginBottom: '2rem', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
             />
-            <Login onLogin={() => setRoute('dashboard')} />
+            <Login onLogin={handleLogin} />
           </div>
         </main>
 
@@ -111,17 +133,24 @@ function App() {
           ))}
           <div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid #1e3a5f' }}>
             <button
-              onClick={() => setRoute('home')}
-              style={{ background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontSize: '14px', padding: 0 }}
-            >Log Out</button>
+              onClick={handleLogout}
+              style={{ 
+                background: 'transparent', 
+                color: '#64748b', 
+                border: 'none', 
+                cursor: 'pointer', 
+                fontSize: '14px', 
+                padding: 0, 
+                display: 'flex', 
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', verticalAlign: 'middle' }}>logout</span>
+              <span>Log Out</span>
+            </button>
           </div>
-          <div style={{ padding: '0 1rem 1rem' }}>
-            <MfeErrorBoundary name="mfe_alerts">
-              <Suspense fallback={null}>
-                <NotificationBell />
-              </Suspense>
-            </MfeErrorBoundary>
-          </div>
+          {/* NotificationBell moved to header */}
         </nav>
 
         {/* Page content */}
@@ -155,6 +184,7 @@ function App() {
         </div>
     </div>
   );
+
 }
 
 export default App;
