@@ -148,18 +148,49 @@ export default async function usersRoutes(fastify: FastifyInstance) {
         return reply.send({ success: true });
     });
 
-    // GET /api/users/active — list zerodha_user_id + name for all active users
+    // GET /api/users/active — list zerodha_user_id + name + capital for all active users
     fastify.get('/api/users/active', async (_request, reply) => {
         const users = await User.findAll({
             where: {
                 is_active: true,
                 zerodha_user_id: { [Op.not]: null },
             },
-            attributes: ['zerodha_user_id', 'name'],
+            attributes: ['zerodha_user_id', 'name', 'capital'],
             order: [['name', 'ASC']],
         });
 
         return reply.send({ data: users });
+    });
+
+    // GET /api/users/:userId/margins — fetch available margin from Zerodha for one user
+    fastify.get('/api/users/:userId/margins', async (request, reply) => {
+        const { userId } = request.params as { userId: string };
+
+        const rows = await sequelize.query(
+            `SELECT zerodha_user_id, zerodha_access_token FROM users WHERE zerodha_user_id = :userId AND is_active = true LIMIT 1`,
+            { replacements: { userId }, type: QueryTypes.SELECT }
+        );
+        const userRow = rows[0] as { zerodha_user_id: string; zerodha_access_token: string | null } | undefined;
+
+        if (!userRow) return reply.status(404).send({ error: 'Active user not found' });
+        if (!userRow.zerodha_access_token) return reply.status(403).send({ error: 'No access token on file for this user' });
+
+        try {
+            const res = await fetch(`${KITE_API_HOST}/oms/user/margins`, {
+                headers: { Authorization: `enctoken ${userRow.zerodha_access_token}` },
+            });
+            if (res.status === 403) return reply.status(403).send({ error: `enctoken for ${userId} is invalid or expired` });
+            if (!res.ok) return reply.status(502).send({ error: `Kite API error: ${res.status}` });
+
+            const body = await res.json() as { status: string; data: any };
+            if (body.status !== 'success') return reply.status(502).send({ error: 'Kite API returned non-success status' });
+
+            const liveBalance: number = body.data?.equity?.available?.live_balance ?? 0;
+            return reply.send({ data: { live_balance: liveBalance } });
+        } catch (error: any) {
+            fastify.log.error(error);
+            throw error;
+        }
     });
 
     // GET /api/users/:userId/holdings — fetch live holdings from Zerodha for one user

@@ -24,13 +24,13 @@ interface ApiResponse {
 type SortKey = keyof Omit<User, 'id' | 'zerodha_password'>;
 type SortDir = 'asc' | 'desc';
 
-const SORT_COLS: { key: SortKey; label: string }[] = [
+const SORT_COLS: { key: SortKey; label: string; right?: boolean; width?: number }[] = [
   { key: 'name',                 label: 'Name'            },
   { key: 'email',                label: 'Email'           },
   { key: 'role',                 label: 'Role'            },
   { key: 'is_active',            label: 'Status'          },
-  { key: 'zerodha_user_id',      label: 'Zerodha User ID' },
-  { key: 'capital',              label: 'Capital'         },
+  { key: 'zerodha_user_id',      label: 'Zerodha User ID', width: 100 },
+  { key: 'capital',              label: 'Capital',  right: true },
   { key: 'zerodha_access_token', label: 'Access Token'    },
 ];
 
@@ -44,7 +44,7 @@ const EMPTY_ADD = {
 
 function fmtCapital(v: number | null) {
   if (v == null) return '—';
-  return Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return Math.floor(Number(v)).toLocaleString('en-IN');
 }
 
 function truncateToken(t: string | null) {
@@ -688,12 +688,24 @@ export default function UsersPage() {
                 <tr className="bg-surface-container-high border-b border-outline-variant">
                   {SORT_COLS.map(col => (
                     <th key={col.key} onClick={() => handleSort(col.key)}
-                      className="p-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant cursor-pointer select-none whitespace-nowrap hover:text-on-surface transition-colors">
-                      <span className="inline-flex items-center gap-1">
-                        {col.label}
-                        {sortKey === col.key
-                          ? <span className="material-symbols-outlined text-primary" style={{ fontSize: '13px' }}>{sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>
-                          : <span className="material-symbols-outlined text-outline" style={{ fontSize: '13px' }}>unfold_more</span>}
+                      style={col.width ? { width: `${col.width}px` } : undefined}
+                      className={`p-3 text-xs font-bold uppercase tracking-wider text-on-surface-variant cursor-pointer select-none whitespace-nowrap hover:text-on-surface transition-colors ${col.right ? 'text-right' : ''}`}>
+                      <span className={`inline-flex items-center gap-1 ${col.right ? 'justify-end' : ''}`}>
+                        {col.right ? (
+                          <>
+                            {sortKey === col.key
+                              ? <span className="material-symbols-outlined text-primary" style={{ fontSize: '13px' }}>{sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>
+                              : <span className="material-symbols-outlined text-outline" style={{ fontSize: '13px' }}>unfold_more</span>}
+                            {col.label}
+                          </>
+                        ) : (
+                          <>
+                            {col.label}
+                            {sortKey === col.key
+                              ? <span className="material-symbols-outlined text-primary" style={{ fontSize: '13px' }}>{sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}</span>
+                              : <span className="material-symbols-outlined text-outline" style={{ fontSize: '13px' }}>unfold_more</span>}
+                          </>
+                        )}
                       </span>
                     </th>
                   ))}

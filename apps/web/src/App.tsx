@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, Suspense } from 'react';
 import './App.css';
 import { Login } from './components/Login';
 import BulkOrderPage from './components/BulkOrderPage';
