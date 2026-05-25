@@ -31,6 +31,18 @@ const inrInt = (v: number) => Math.round(v).toLocaleString('en-IN');
 
 const inrQty = (v: number) => v.toLocaleString('en-IN');
 
+function fmtAmt(n: number): string {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)}Cr`;
+  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(2)}L`;
+  return (n < 0 ? '-' : '') + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(abs);
+}
+
+function fmtPct(n: number): string {
+  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+
 const COLS: { key: SortKey; label: string; right: boolean }[] = [
   { key: 'tradingsymbol',        label: 'Instrument', right: false },
   { key: 'quantity',             label: 'Qty',        right: true  },
@@ -619,16 +631,16 @@ export default function DashboardPage() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total Investment</div>
-                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.profit.totalInvested)}</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums font-mono">₹{fmtAmt(summary.profit.totalInvested)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Current Value</div>
-                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.profit.totalCurVal)}</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums font-mono">₹{fmtAmt(summary.profit.totalCurVal)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total P&amp;L</div>
-                <div className="text-2xl font-semibold tabular-nums text-secondary">+{inrInt(summary.profit.totalPnl)}</div>
-                <div className="text-xs mt-1 text-secondary">+{summary.profit.totalPnlPct.toFixed(2)}%</div>
+                <div className="text-2xl font-semibold tabular-nums text-secondary font-mono">+₹{fmtAmt(summary.profit.totalPnl)}</div>
+                <div className="text-xs mt-1 text-secondary font-mono">{fmtPct(summary.profit.totalPnlPct)}</div>
               </div>
             </div>
           </div>
@@ -642,19 +654,19 @@ export default function DashboardPage() {
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total Investment</div>
-                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.overall.totalInvested)}</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums font-mono">₹{fmtAmt(summary.overall.totalInvested)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Current Value</div>
-                <div className="text-2xl font-semibold text-on-surface tabular-nums">{inrInt(summary.overall.totalCurVal)}</div>
+                <div className="text-2xl font-semibold text-on-surface tabular-nums font-mono">₹{fmtAmt(summary.overall.totalCurVal)}</div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1.5">Total P&amp;L</div>
-                <div className={`text-2xl font-semibold tabular-nums ${summary.overall.totalPnl >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
-                  {summary.overall.totalPnl >= 0 ? '+' : ''}{inrInt(summary.overall.totalPnl)}
+                <div className={`text-2xl font-semibold tabular-nums font-mono ${summary.overall.totalPnl >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                  {summary.overall.totalPnl >= 0 ? '+' : ''}₹{fmtAmt(summary.overall.totalPnl)}
                 </div>
-                <div className={`text-xs mt-1 ${summary.overall.totalPnlPct >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
-                  {summary.overall.totalPnlPct >= 0 ? '+' : ''}{summary.overall.totalPnlPct.toFixed(2)}%
+                <div className={`text-xs mt-1 font-mono ${summary.overall.totalPnlPct >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                  {fmtPct(summary.overall.totalPnlPct)}
                 </div>
               </div>
             </div>

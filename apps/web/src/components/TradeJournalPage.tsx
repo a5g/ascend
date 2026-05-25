@@ -2300,12 +2300,12 @@ export default function TradeJournalPage() {
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-4">
-            <SummaryCard title="Overall" count={summary.overall.count}
-              invested={summary.overall.invested} currValue={summary.overall.curr_value}
-              pnl={summary.overall.pnl} pnlPct={summary.overall.pnl_pct} />
             <SummaryCard title="Profits Only" count={summary.profits.count}
               invested={summary.profits.invested} currValue={summary.profits.curr_value}
               pnl={summary.profits.pnl} pnlPct={summary.profits.pnl_pct} />
+            <SummaryCard title="Overall" count={summary.overall.count}
+              invested={summary.overall.invested} currValue={summary.overall.curr_value}
+              pnl={summary.overall.pnl} pnlPct={summary.overall.pnl_pct} />
           </div>
 
           {/* Table */}
