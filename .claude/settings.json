@@ -3,7 +3,15 @@
     "allow": [
       "Bash(pnpm --filter @ascend/mfe-alerts run build)",
       "Bash(node -e ' *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(pnpm --filter @ascend/db exec sequelize-cli db:migrate)",
+      "Bash(pnpm add *)",
+      "Bash(psql -U anand -d ascend -c \"SELECT id, app_id, fyer_id, secret IS NOT NULL as has_secret, access_token IS NOT NULL as has_access_token FROM fyers;\")",
+      "Bash(psql -U anand -d ascend -c \"\\\\d fyers\")",
+      "Bash(npx sequelize-cli *)",
+      "Bash(psql -U anand -d ascend -c \"SELECT exchange, COUNT\\(*\\) FROM securities GROUP BY exchange;\")",
+      "Bash(node packages/db/scripts/seed-trade-history.js)",
+      "Bash(pnpm --filter=api exec tsc --noEmit)"
     ]
   }
 }

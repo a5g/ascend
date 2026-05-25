@@ -22,6 +22,7 @@
     "@ascend/zerodha": "workspace:*",
     "@fastify/helmet": "^13.0.2",
     "fastify": "^5.8.5",
+    "fyers-api-v3": "^1.8.0",
     "sequelize": "^6.37.8"
   }
 }

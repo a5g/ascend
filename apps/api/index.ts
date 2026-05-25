@@ -41,6 +41,12 @@ fastify.register(securitiesRoutes);
 import ordersRoutes from './orders';
 fastify.register(ordersRoutes);
 
+import fyersRoutes from './fyers';
+fastify.register(fyersRoutes);
+
+import tradeJournalRoutes from './trade-journal';
+fastify.register(tradeJournalRoutes);
+
 const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: '0.0.0.0' });

@@ -5,6 +5,8 @@ import BulkOrderPage from './components/BulkOrderPage';
 import DashboardPage from './components/DashboardPage';
 import SecuritiesPage from './components/SecuritiesPage';
 import UsersPage from './components/UsersPage';
+import FyersPage from './components/FyersPage';
+import TradeJournalPage from './components/TradeJournalPage';
 import { MfeErrorBoundary } from './components/MfeErrorBoundary';
 
 // Wraps React.lazy so a failed remote (RUNTIME-008 / network error) resolves to
@@ -113,6 +115,8 @@ function App() {
             { label: 'Alerts',      route: 'alerts'      },
             { label: 'Super Admin', route: 'admin'       },
             { label: 'Users',       route: 'users'       },
+            { label: 'Fyers',       route: 'fyers'       },
+            { label: 'Trade Journal', route: 'trades'    },
           ].map(({ label, route: r }) => (
             <button
               key={r}
@@ -180,7 +184,9 @@ function App() {
           </MfeErrorBoundary>
       )}
 
-      {route === 'users' && <UsersPage />}
+      {route === 'users'  && <UsersPage />}
+      {route === 'fyers'  && <FyersPage />}
+      {route === 'trades' && <TradeJournalPage />}
         </div>
     </div>
   );

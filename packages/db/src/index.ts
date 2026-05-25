@@ -219,6 +219,7 @@ class Security extends Model {
   public symbol!: string;
   public name_of_company!: string;
   public series!: string;
+  public exchange!: string;
   public date_of_listing!: string | null;
   public paid_up_value!: number | null;
   public market_lot!: number | null;
@@ -245,6 +246,11 @@ Security.init(
     series: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    exchange: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: 'NSE',
     },
     date_of_listing: {
       type: DataTypes.DATEONLY,
@@ -274,4 +280,134 @@ Security.init(
   }
 );
 
-export { sequelize, User, PositionSizingConfig, Alert, Notification, Security };
+class Fyers extends Model {
+  public id!: number;
+  public fyer_id!: string | null;
+  public app_id!: string;
+  public secret!: string;
+  public access_token!: string | null;
+  public refresh_token!: string | null;
+}
+
+Fyers.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    fyer_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    app_id: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    secret: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    access_token: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    refresh_token: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'fyers',
+  }
+);
+
+class TradeMethod extends Model {
+  public id!: number;
+  public name!: string;
+}
+
+TradeMethod.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    name: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      unique: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'trade_methods',
+  }
+);
+
+class TradeJournal extends Model {
+  public id!: number;
+  public method!: string;
+  public account!: string;
+  public instrument!: string;
+  public qty!: number;
+  public buy_price!: number;
+  public sell_price!: number | null;
+  public stop_loss!: number | null;
+  public buy_date!: string | null;
+  public sell_date!: string | null;
+}
+
+TradeJournal.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    method: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+    },
+    account: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+    },
+    instrument: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+    },
+    qty: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: false,
+    },
+    buy_price: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: false,
+    },
+    sell_price: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: true,
+    },
+    stop_loss: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: true,
+    },
+    buy_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    sell_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'trade_journal',
+  }
+);
+
+export { sequelize, User, PositionSizingConfig, Alert, Notification, Security, Fyers, TradeMethod, TradeJournal };

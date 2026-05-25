@@ -7,6 +7,7 @@ interface Security {
   symbol:           string;
   name_of_company:  string;
   series:           string;
+  exchange:         string;
   date_of_listing:  string | null;
   paid_up_value:    number | null;
   market_lot:       number | null;
@@ -28,6 +29,7 @@ const COLS: { key: SortKey; label: string; right: boolean }[] = [
   { key: 'symbol',          label: 'Symbol',          right: false },
   { key: 'name_of_company', label: 'Name of Company', right: false },
   { key: 'series',          label: 'Series',          right: false },
+  { key: 'exchange',        label: 'Exchange',        right: false },
   { key: 'date_of_listing', label: 'Date of Listing', right: false },
   { key: 'paid_up_value',   label: 'Paid Up Value',   right: true  },
   { key: 'market_lot',      label: 'Market Lot',      right: true  },
@@ -63,9 +65,10 @@ interface AddModalProps {
 }
 
 function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
-  const [form, setForm]     = useState({ ...EMPTY_FORM });
-  const [adding, setAdding] = useState(false);
-  const [error, setError]   = useState<string | null>(null);
+  const [form, setForm]         = useState({ ...EMPTY_FORM });
+  const [exchange, setExchange] = useState<'NSE' | 'BSE'>('NSE');
+  const [adding, setAdding]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   const canAdd = ['symbol', 'name_of_company', 'series', 'isin_number'].every(
     k => form[k as keyof typeof form]?.trim()
@@ -91,6 +94,7 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
           name_of_company: form.name_of_company.trim(),
           series:          form.series.trim().toUpperCase(),
           isin_number:     form.isin_number.trim().toUpperCase(),
+          exchange,
           date_of_listing: form.date_of_listing || null,
           paid_up_value:   form.paid_up_value ? parseInt(form.paid_up_value, 10) : null,
           market_lot:      form.market_lot     ? parseInt(form.market_lot, 10)   : null,
@@ -162,6 +166,25 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
         <div className="px-5 py-5 grid grid-cols-2 gap-4">
           {field('Symbol',          'symbol',          { placeholder: 'RELIANCE',           mandatory: true  })}
           {field('Series',          'series',          { placeholder: 'EQ',                 mandatory: true  })}
+
+          {/* Exchange toggle */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Exchange</label>
+            <div className="flex h-[38px] bg-surface-container border border-outline-variant rounded-sm overflow-hidden self-start">
+              {(['NSE', 'BSE'] as const).map(ex => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => setExchange(ex)}
+                  className={`px-5 text-sm font-semibold transition-colors ${
+                    exchange === ex
+                      ? 'bg-primary text-on-primary'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >{ex}</button>
+              ))}
+            </div>
+          </div>
           {field('Name of Company', 'name_of_company', { placeholder: 'Reliance Industries Ltd', mandatory: true, wide: true })}
           {field('ISIN Number',     'isin_number',     { placeholder: 'INE002A01018',       mandatory: true, wide: true })}
           {field('Date of Listing', 'date_of_listing', { type: 'date' })}
@@ -588,6 +611,11 @@ export default function SecuritiesPage() {
                       <td className="p-3 text-sm font-mono text-on-surface whitespace-nowrap">{s.symbol}</td>
                       <td className="p-3 text-sm text-on-surface">{s.name_of_company}</td>
                       <td className="p-3 text-sm text-on-surface-variant">{s.series}</td>
+                      <td className="p-3 text-sm">
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-sm bg-surface-container-high border border-outline-variant text-on-surface-variant">
+                          {s.exchange ?? 'NSE'}
+                        </span>
+                      </td>
                       <td className="p-3 text-sm text-on-surface-variant whitespace-nowrap">{fmtDate(s.date_of_listing)}</td>
                       <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.paid_up_value != null ? s.paid_up_value.toLocaleString('en-IN') : '—'}</td>
                       <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.market_lot ?? '—'}</td>

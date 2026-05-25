@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,10 +12,11 @@ interface KiteHolding {
   exchange: string;
   quantity: number;
   average_price: number;
-  last_price: number;
-  pnl: number;
-  day_change: number;
-  day_change_percentage: number;
+}
+
+interface FyersQuote {
+  lp:  number | null;
+  chp: number | null;
 }
 
 type SortKey = 'tradingsymbol' | 'quantity' | 'average_price' | 'last_price' | 'invested' | 'cur_val' | 'pnl' | 'pnl_pct' | 'day_change_percentage';
@@ -42,17 +43,28 @@ const COLS: { key: SortKey; label: string; right: boolean }[] = [
   { key: 'day_change_percentage', label: 'Day Chg',   right: true  },
 ];
 
-function getSortValue(h: KiteHolding, key: SortKey): number | string {
+function fyersSymbol(tradingsymbol: string, _exchange: string): string {
+  return tradingsymbol.includes('-BE')
+    ? `NSE:${tradingsymbol}`
+    : `NSE:${tradingsymbol}-EQ`;
+}
+
+function getLtp(h: KiteHolding, quotes: Record<string, FyersQuote>): number {
+  return quotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.lp ?? 0;
+}
+
+function getSortValue(h: KiteHolding, key: SortKey, quotes: Record<string, FyersQuote>): number | string {
+  const ltp = getLtp(h, quotes);
   switch (key) {
-    case 'tradingsymbol':        return h.tradingsymbol;
-    case 'quantity':             return h.quantity;
-    case 'average_price':        return h.average_price;
-    case 'last_price':           return h.last_price;
-    case 'invested':             return h.quantity * h.average_price;
-    case 'cur_val':              return h.last_price * h.quantity;
-    case 'pnl':                  return h.pnl;
-    case 'pnl_pct':              return h.average_price > 0 ? ((h.last_price - h.average_price) / h.average_price) * 100 : 0;
-    case 'day_change_percentage': return h.day_change_percentage;
+    case 'tradingsymbol':         return h.tradingsymbol;
+    case 'quantity':              return h.quantity;
+    case 'average_price':         return h.average_price;
+    case 'last_price':            return ltp;
+    case 'invested':              return h.quantity * h.average_price;
+    case 'cur_val':               return ltp * h.quantity;
+    case 'pnl':                   return ltp * h.quantity - h.quantity * h.average_price;
+    case 'pnl_pct':               return h.average_price > 0 ? ((ltp - h.average_price) / h.average_price) * 100 : 0;
+    case 'day_change_percentage': return quotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.chp ?? 0;
   }
 }
 
@@ -62,16 +74,18 @@ interface TradeModalProps {
   holding: KiteHolding;
   type: 'BUY' | 'SELL';
   zerodha_user_id: string;
+  name: string | null;
+  ltp: number;
   onClose: () => void;
 }
 
-function TradeModal({ holding, type, zerodha_user_id, onClose }: TradeModalProps) {
+function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: TradeModalProps) {
   const isBuy = type === 'BUY';
 
   const [qty, setQty] = useState(isBuy ? '' : String(holding.quantity));
   const [order_type, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
   const [exchange, setExchange] = useState<'NSE' | 'BSE'>('NSE');
-  const [price, setPrice] = useState(holding.last_price.toFixed(2));
+  const [price, setPrice] = useState(ltp > 0 ? ltp.toFixed(2) : '');
   const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [placing, setPlacing] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -103,7 +117,7 @@ function TradeModal({ holding, type, zerodha_user_id, onClose }: TradeModalProps
 
   const qtyNum   = parseInt(qty, 10);
   const priceNum = parseFloat(price);
-  const effectivePrice = order_type === 'LIMIT' ? priceNum : holding.last_price;
+  const effectivePrice = order_type === 'LIMIT' ? priceNum : ltp;
   const amountRequired = qtyNum > 0 && isFinite(effectivePrice) ? qtyNum * effectivePrice : null;
   const txnFee         = amountRequired != null ? amountRequired * 0.00119063431 : null;
   const totalAmount    = amountRequired != null && txnFee != null ? amountRequired + txnFee : null;
@@ -206,22 +220,26 @@ function TradeModal({ holding, type, zerodha_user_id, onClose }: TradeModalProps
           ) : step === 'form' ? (
             /* Form */
             <>
-              {/* Stock info strip */}
-              <div className="grid grid-cols-3 text-xs font-data-mono bg-surface-container-high px-3 py-2 border border-outline-variant/30 gap-2 items-center">
-                <div className="flex bg-surface-container border border-outline-variant p-0.5 w-fit">
-                  {(['NSE', 'BSE'] as const).map(ex => (
-                    <button key={ex} type="button" onClick={() => setExchange(ex)}
-                      className={`px-2 py-0.5 font-label-caps text-[10px] uppercase transition-colors ${
-                        exchange === ex ? toggleActive : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-                      }`}>
-                      {ex}
-                    </button>
-                  ))}
+              {/* User + stock info strip */}
+              <div className="bg-surface-container-high px-3 py-2 border border-outline-variant/30 flex items-center justify-between text-xs font-data-mono">
+                <div className="flex flex-col">
+                  <span className="text-primary font-bold">{zerodha_user_id}</span>
+                  {name && <span className="text-on-surface-variant text-[10px] uppercase tracking-tighter">{name}</span>}
                 </div>
-                <span className="text-on-surface text-center">
-                  LTP: <strong className={titleCls}>{inrM(holding.last_price)}</strong>
-                </span>
-                <span className="text-on-surface text-right">Holding: <strong>{inrQty(holding.quantity)}</strong></span>
+                <div className="flex items-center gap-4">
+                  <div className="flex bg-surface-container border border-outline-variant p-0.5">
+                    {(['NSE', 'BSE'] as const).map(ex => (
+                      <button key={ex} type="button" onClick={() => setExchange(ex)}
+                        className={`px-2 py-0.5 font-label-caps text-[10px] uppercase transition-colors ${
+                          exchange === ex ? toggleActive : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                        }`}>
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-on-surface-variant">LTP: <strong className={titleCls}>{ltp > 0 ? inrM(ltp) : '—'}</strong></span>
+                  <span className="text-on-surface-variant">Holding: <strong className="text-on-surface">{inrQty(holding.quantity)}</strong></span>
+                </div>
               </div>
 
               {/* Order type toggle */}
@@ -318,6 +336,13 @@ function TradeModal({ holding, type, zerodha_user_id, onClose }: TradeModalProps
             /* Confirm */
             <>
               <div className="bg-surface-container-high border border-outline-variant p-4 space-y-2 text-sm font-data-mono">
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Account</span>
+                  <div className="text-right">
+                    <span className={`font-bold ${titleCls}`}>{zerodha_user_id}</span>
+                    {name && <span className="block text-[10px] text-on-surface-variant uppercase">{name}</span>}
+                  </div>
+                </div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Symbol</span><span className={`font-bold ${titleCls}`}>{holding.tradingsymbol}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Exchange</span><span className="text-on-surface">{exchange}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Action</span><span className={`font-bold ${titleCls}`}>{type}</span></div>
@@ -391,6 +416,18 @@ function HoldingsSkeleton() {
   );
 }
 
+// Returns true if the current time falls within NSE market hours
+// (Mon–Fri, 09:15–15:30 IST / UTC+5:30)
+function isMarketOpen(): boolean {
+  // IST = UTC+5:30
+  const istMs  = Date.now() + (5 * 60 + 30) * 60 * 1000;
+  const ist    = new Date(istMs);
+  const istDay = ist.getUTCDay(); // 0=Sun, 6=Sat
+  if (istDay === 0 || istDay === 6) return false;
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -406,8 +443,9 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery]     = useState('');
   const [filterText, setFilterText]       = useState('');
   const [focusedUserIndex, setFocusedUserIndex] = useState(-1);
-  const [tradeModal, setTradeModal] = useState<{ holding: KiteHolding; type: 'BUY' | 'SELL' } | null>(null);
+  const [tradeModal, setTradeModal] = useState<{ holding: KiteHolding; type: 'BUY' | 'SELL'; ltp: number } | null>(null);
   const [headerMargin, setHeaderMargin] = useState<number | null | undefined>(undefined);
+  const [fyersQuotes, setFyersQuotes] = useState<Record<string, FyersQuote>>({});
   const dropdownRef  = useRef<HTMLDivElement>(null);
   const searchRef    = useRef<HTMLInputElement>(null);
   const userListRef  = useRef<HTMLDivElement>(null);
@@ -471,6 +509,7 @@ export default function DashboardPage() {
     if (!selectedKiteId) return;
     setLoadingHoldings(true);
     setHoldingsError(null);
+    setFyersQuotes({});
     fetch(`/api/users/${encodeURIComponent(selectedKiteId)}/holdings`)
       .then(r => {
         if (!r.ok) throw new Error(`${r.status}`);
@@ -480,6 +519,29 @@ export default function DashboardPage() {
       .catch(e => setHoldingsError(`Failed to load holdings: ${e.message}`))
       .finally(() => setLoadingHoldings(false));
   }, [selectedKiteId]);
+
+  // Fetch Fyers quotes for all holdings, then refresh every 1 minute
+  const fetchFyersQuotes = useCallback(() => {
+    if (holdings.length === 0) return;
+    const symbols = holdings.map(h => fyersSymbol(h.tradingsymbol, h.exchange));
+    fetch('/api/fyers/quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols }),
+    })
+      .then(r => r.json())
+      .then(res => { if (res.data) setFyersQuotes(res.data); })
+      .catch(() => {});
+  }, [holdings]);
+
+  useEffect(() => {
+    if (holdings.length === 0) return;
+    fetchFyersQuotes(); // always fetch once on load
+    const id = setInterval(() => {
+      if (isMarketOpen()) fetchFyersQuotes();
+    }, 60000);
+    return () => clearInterval(id);
+  }, [fetchFyersQuotes]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -492,28 +554,29 @@ export default function DashboardPage() {
 
   const sortedHoldings = useMemo(() => {
     return [...holdings].sort((a, b) => {
-      const av = getSortValue(a, sortKey);
-      const bv = getSortValue(b, sortKey);
+      const av = getSortValue(a, sortKey, fyersQuotes);
+      const bv = getSortValue(b, sortKey, fyersQuotes);
       const cmp = typeof av === 'string'
         ? av.localeCompare(bv as string)
         : (av as number) - (bv as number);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [holdings, sortKey, sortDir]);
+  }, [holdings, sortKey, sortDir, fyersQuotes]);
 
   const summary = useMemo(() => {
+    const ltpOf = (h: KiteHolding) => fyersQuotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.lp ?? 0;
     const calc = (hs: KiteHolding[]) => {
       const totalInvested = hs.reduce((s, h) => s + h.quantity * h.average_price, 0);
-      const totalCurVal   = hs.reduce((s, h) => s + h.last_price * h.quantity, 0);
-      const totalPnl      = hs.reduce((s, h) => s + h.pnl, 0);
+      const totalCurVal   = hs.reduce((s, h) => s + ltpOf(h) * h.quantity, 0);
+      const totalPnl      = totalCurVal - totalInvested;
       const totalPnlPct   = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
       return { totalInvested, totalCurVal, totalPnl, totalPnlPct };
     };
     return {
       overall: calc(holdings),
-      profit:  calc(holdings.filter(h => h.pnl > 0)),
+      profit:  calc(holdings.filter(h => ltpOf(h) > h.average_price)),
     };
-  }, [holdings]);
+  }, [holdings, fyersQuotes]);
 
   const filteredUsers = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -715,18 +778,30 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Instrument filter */}
-              <div className="flex items-center gap-2 w-64 bg-surface-container-high border border-outline-variant rounded-sm px-3 py-2 focus-within:border-primary transition-colors">
-                <span className="material-symbols-outlined text-on-surface-variant flex-shrink-0" style={{ fontSize: '16px' }}>search</span>
-                <input
-                  type="text"
-                  value={filterText}
-                  onChange={e => setFilterText(e.target.value)}
-                  placeholder="Filter by instrument..."
-                  className="bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none flex-1 min-w-0"
-                />
-                <button onClick={() => setFilterText('')} className="flex-shrink-0" style={{ visibility: filterText ? 'visible' : 'hidden' }}>
-                  <span className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" style={{ fontSize: '15px' }}>close</span>
+              <div className="flex items-center gap-2.5">
+                {/* Instrument filter */}
+                <div className="flex items-center gap-2 w-64 bg-surface-container-high border border-outline-variant rounded-sm px-3 py-2 focus-within:border-primary transition-colors">
+                  <span className="material-symbols-outlined text-on-surface-variant flex-shrink-0" style={{ fontSize: '16px' }}>search</span>
+                  <input
+                    type="text"
+                    value={filterText}
+                    onChange={e => setFilterText(e.target.value)}
+                    placeholder="Filter by instrument..."
+                    className="bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none flex-1 min-w-0"
+                  />
+                  <button onClick={() => setFilterText('')} className="flex-shrink-0" style={{ visibility: filterText ? 'visible' : 'hidden' }}>
+                    <span className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" style={{ fontSize: '15px' }}>close</span>
+                  </button>
+                </div>
+
+                {/* Refresh button */}
+                <button
+                  onClick={fetchFyersQuotes}
+                  title="Refresh quotes"
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-surface-container-high border border-outline-variant rounded-sm text-on-surface-variant hover:text-on-surface hover:border-primary transition-colors whitespace-nowrap"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                  Refresh
                 </button>
               </div>
             </div>
@@ -806,24 +881,31 @@ export default function DashboardPage() {
                     </tr>
                   ) : (<>
                     {sortedHoldings.filter(h => h.tradingsymbol.toLowerCase().includes(filterText.toLowerCase())).map(h => {
-                      const pnlPos  = h.pnl >= 0;
-                      const pct     = h.average_price > 0 ? ((h.last_price - h.average_price) / h.average_price) * 100 : 0;
-                      const dayPos  = h.day_change_percentage >= 0;
+                      const fq       = fyersQuotes[fyersSymbol(h.tradingsymbol, h.exchange)];
+                      const ltp      = fq?.lp ?? null;
+                      const ltpVal   = ltp ?? 0;
                       const invested = h.quantity * h.average_price;
-                      const curVal  = h.last_price * h.quantity;
+                      const curVal   = ltpVal * h.quantity;
+                      const pnl      = curVal - invested;
+                      const pnlPos   = pnl >= 0;
+                      const pct      = h.average_price > 0 ? ((ltpVal - h.average_price) / h.average_price) * 100 : 0;
+                      const chp      = fq?.chp ?? null;
                       return (
                         <tr key={h.tradingsymbol} className="group hover:bg-surface-variant transition-colors">
                           <td className="p-3 text-on-surface">
                             <div className="flex items-center">
                               <span>{h.tradingsymbol}</span>
+                              {h.exchange === 'BSE' && (
+                                <span className="ml-1.5 font-label-caps text-[8px] px-1 py-0.5 bg-surface-container-high border border-outline-variant text-on-surface-variant">BSE</span>
+                              )}
                               <div className="hidden group-hover:flex items-center" style={{ marginLeft: '10px', gap: '4px' }}>
                                 <button
-                                  onClick={() => setTradeModal({ holding: h, type: 'BUY' })}
+                                  onClick={() => setTradeModal({ holding: h, type: 'BUY', ltp: ltpVal })}
                                   title="Buy more"
                                   className="px-1.5 py-0.5 text-xs font-bold bg-secondary/20 text-secondary hover:bg-secondary/30 transition-colors"
                                 >B</button>
                                 <button
-                                  onClick={() => setTradeModal({ holding: h, type: 'SELL' })}
+                                  onClick={() => setTradeModal({ holding: h, type: 'SELL', ltp: ltpVal })}
                                   title="Sell"
                                   className="px-1.5 py-0.5 text-xs font-bold bg-tertiary/20 text-tertiary hover:bg-tertiary/30 transition-colors"
                                 >S</button>
@@ -833,22 +915,26 @@ export default function DashboardPage() {
                           <td className="p-3 text-right text-on-surface">{inrQty(h.quantity)}</td>
                           <td className="p-3 text-right text-on-surface">{inr(h.average_price)}</td>
                           <td className={`p-3 text-right ${pnlPos ? 'text-secondary' : 'text-tertiary'}`}>
-                            {inr(h.last_price)}
+                            {ltp != null ? inr(ltp) : <span className="text-on-surface-variant">—</span>}
                           </td>
                           <td className="p-3 text-right text-on-surface">{inrInt(invested)}</td>
-                          <td className="p-3 text-right text-on-surface">{inrInt(curVal)}</td>
+                          <td className="p-3 text-right text-on-surface">{ltp != null ? inrInt(curVal) : <span className="text-on-surface-variant">—</span>}</td>
                           <td className={`p-3 text-right ${pnlPos ? 'text-secondary' : 'text-tertiary'}`}>
-                            {pnlPos ? '+' : ''}{inrInt(h.pnl)}
+                            {ltp != null ? <>{pnlPos ? '+' : ''}{inrInt(pnl)}</> : <span className="text-on-surface-variant">—</span>}
                           </td>
                           <td className="p-3 text-right">
-                            <span className={`px-2 py-0.5 rounded text-sm ${pnlPos ? 'bg-secondary/10 text-secondary' : 'bg-tertiary/10 text-tertiary'}`}>
-                              {pnlPos ? '+' : ''}{pct.toFixed(2)}%
-                            </span>
+                            {ltp != null
+                              ? <span className={`text-sm font-mono ${pct > 0 ? 'text-secondary' : pct < 0 ? 'text-tertiary' : 'text-on-surface-variant'}`}>
+                                  {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                                </span>
+                              : <span className="text-on-surface-variant">—</span>}
                           </td>
                           <td className="p-3 text-right">
-                            <span className={`px-2 py-0.5 rounded text-sm ${dayPos ? 'bg-secondary/10 text-secondary' : 'bg-tertiary/10 text-tertiary'}`}>
-                              {dayPos ? '+' : ''}{h.day_change_percentage.toFixed(2)}%
-                            </span>
+                            {chp != null
+                              ? <span className={`text-sm ${chp > 0 ? 'text-secondary' : chp < 0 ? 'text-tertiary' : 'text-on-surface-variant'}`}>
+                                  {chp >= 0 ? '▲' : '▼'} {Math.abs(chp).toFixed(2)}%
+                                </span>
+                              : <span className="text-on-surface-variant">—</span>}
                           </td>
                         </tr>
                       );
@@ -895,6 +981,8 @@ export default function DashboardPage() {
           holding={tradeModal.holding}
           type={tradeModal.type}
           zerodha_user_id={selectedKiteId}
+          name={activeUsers.find(u => u.zerodha_user_id === selectedKiteId)?.name ?? null}
+          ltp={tradeModal.ltp}
           onClose={() => setTradeModal(null)}
         />
       )}

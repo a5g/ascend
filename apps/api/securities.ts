@@ -44,6 +44,7 @@ export default async function securitiesRoutes(fastify: FastifyInstance) {
             name_of_company: string;
             series:          string;
             isin_number:     string;
+            exchange?:        string;
             date_of_listing?: string | null;
             paid_up_value?:   number | null;
             market_lot?:      number | null;
@@ -56,12 +57,15 @@ export default async function securitiesRoutes(fastify: FastifyInstance) {
             return reply.status(400).send({ error: 'symbol, name_of_company, series and isin_number are required' });
         }
 
+        const exchange = body.exchange === 'BSE' ? 'BSE' : 'NSE';
+
         try {
             const security = await Security.create({
                 symbol:          symbol.trim().toUpperCase(),
                 name_of_company: name_of_company.trim(),
                 series:          series.trim().toUpperCase(),
                 isin_number:     isin_number.trim().toUpperCase(),
+                exchange,
                 date_of_listing: body.date_of_listing || null,
                 paid_up_value:   body.paid_up_value != null ? Math.trunc(Number(body.paid_up_value)) : null,
                 market_lot:      body.market_lot     != null ? Math.trunc(Number(body.market_lot))     : null,
