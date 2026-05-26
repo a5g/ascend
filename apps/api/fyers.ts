@@ -111,6 +111,158 @@ export default async function fyersRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // ── Fyers Price-Alert routes ─────────────────────────────────────────────
+
+    async function getFyersAuthHeader(): Promise<string> {
+        const record = await Fyers.findOne({ order: [['id', 'ASC']] });
+        if (!record) throw new Error('Fyers not configured');
+        const app_id       = record.get('app_id')       as string;
+        const access_token = record.get('access_token') as string | null;
+        if (!access_token) throw new Error('Fyers access token not available');
+        return `${app_id}:${access_token}`;
+    }
+
+    const FYERS_ALERT_URL  = 'https://api-t1.fyers.in/api/v3/price-alert';
+    const FYERS_TOGGLE_URL = 'https://api-t1.fyers.in/api/v3/toggle-alert';
+
+    // "26-May-2026 21:45:05" → "2026-05-26"
+    function fyersDateToIso(s: string): string {
+        if (!s) return '';
+        const months: Record<string, string> = {
+            Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+            Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+        };
+        const [dd, mon, yyyy] = s.split(' ')[0].split('-');
+        return `${yyyy}-${months[mon] ?? '00'}-${dd?.padStart(2, '0')}`;
+    }
+
+    // GET /api/fyers/alerts
+    fastify.get('/api/fyers/alerts', async (_request, reply) => {
+        try {
+            const auth = await getFyersAuthHeader();
+            const res  = await fetch(FYERS_ALERT_URL, { headers: { Authorization: auth } });
+            const data = await res.json() as any;
+            if (!res.ok) return reply.status(res.status).send({ error: data?.message || 'Failed to fetch alerts' });
+            // Response is { data: { "<alertId>": { alert: {...}, symbol: "..." }, ... } }
+            const raw = data.d ?? data.data ?? {};
+            const alertList = typeof raw === 'object' && !Array.isArray(raw)
+                ? Object.entries(raw).map(([id, item]: [string, any]) => ({
+                    id,
+                    name:           item.alert?.name           ?? '',
+                    symbol:         item.symbol                 ?? '',
+                    comparisonType: item.alert?.comparisonType ?? '',
+                    condition:      item.alert?.condition       ?? '',
+                    value:          item.alert?.value           ?? 0,
+                    status:         item.alert?.status          ?? 0,
+                    createdDate:    fyersDateToIso(item.alert?.createdAt  ?? ''),
+                    updatedDate:    fyersDateToIso(item.alert?.modifiedAt ?? ''),
+                }))
+                : (Array.isArray(raw) ? raw : []);
+            return reply.send({ data: alertList });
+        } catch (err: any) {
+            return reply.status(500).send({ error: err.message || 'Failed to fetch alerts' });
+        }
+    });
+
+    // POST /api/fyers/alerts — create alert
+    fastify.post('/api/fyers/alerts', async (request, reply) => {
+        const body = request.body as any;
+        try {
+            const auth = await getFyersAuthHeader();
+            const res  = await fetch(FYERS_ALERT_URL, {
+                method:  'POST',
+                headers: { Authorization: auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agent:          'fyers-api',
+                    'alert-type':   1,
+                    name:           body.name,
+                    symbol:         body.symbol,
+                    comparisonType: body.comparisonType ?? 'CLOSE',
+                    condition:      body.condition,
+                    value:          body.value,
+                }),
+            });
+            const data = await res.json() as any;
+            if (!res.ok) return reply.status(res.status).send({ error: data?.message || 'Failed to create alert' });
+            return reply.status(201).send({ ok: true, data });
+        } catch (err: any) {
+            return reply.status(500).send({ error: err.message || 'Failed to create alert' });
+        }
+    });
+
+    // PUT /api/fyers/alerts/:alertId — modify alert
+    fastify.put('/api/fyers/alerts/:alertId', async (request, reply) => {
+        const { alertId } = request.params as any;
+        const body        = request.body   as any;
+        try {
+            const auth    = await getFyersAuthHeader();
+            const payload = {
+                alertId,
+                agent:          'fyers-api',
+                'alert-type':   1,
+                name:           body.name,
+                symbol:         body.symbol,
+                comparisonType: body.comparisonType ?? 'CLOSE',
+                condition:      body.condition,
+                value:          body.value,
+            };
+            fastify.log.info({ payload }, 'fyers modify-alert request');
+            const res  = await fetch(FYERS_ALERT_URL, {
+                method:  'PUT',
+                headers: { Authorization: auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json() as any;
+            fastify.log.info({ status: res.status, data }, 'fyers modify-alert response');
+            if (!res.ok || data?.s === 'error') return reply.status(res.ok ? 400 : res.status).send({ error: data?.message || 'Failed to update alert' });
+            return reply.send({ ok: true, data });
+        } catch (err: any) {
+            return reply.status(500).send({ error: err.message || 'Failed to update alert' });
+        }
+    });
+
+    // DELETE /api/fyers/alerts/:alertId — delete alert
+    fastify.delete('/api/fyers/alerts/:alertId', async (request, reply) => {
+        const { alertId } = request.params as any;
+        try {
+            const auth    = await getFyersAuthHeader();
+            const payload = { alertId, agent: 'fyers-api' };
+            fastify.log.info({ payload }, 'fyers delete-alert request');
+            const res  = await fetch(FYERS_ALERT_URL, {
+                method:  'DELETE',
+                headers: { Authorization: auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json() as any;
+            fastify.log.info({ status: res.status, data }, 'fyers delete-alert response');
+            if (!res.ok || data?.s === 'error') return reply.status(res.ok ? 400 : res.status).send({ error: data?.message || 'Failed to delete alert' });
+            return reply.send({ ok: true });
+        } catch (err: any) {
+            return reply.status(500).send({ error: err.message || 'Failed to delete alert' });
+        }
+    });
+
+    // PUT /api/fyers/alerts/:alertId/toggle — enable/disable alert
+    fastify.put('/api/fyers/alerts/:alertId/toggle', async (request, reply) => {
+        const { alertId } = request.params as any;
+        try {
+            const auth    = await getFyersAuthHeader();
+            const payload = { alertId, agent: 'fyers-api' };
+            fastify.log.info({ payload }, 'fyers toggle-alert request');
+            const res  = await fetch(FYERS_TOGGLE_URL, {
+                method:  'PUT',
+                headers: { Authorization: auth, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json() as any;
+            fastify.log.info({ status: res.status, data }, 'fyers toggle-alert response');
+            if (!res.ok || data?.s === 'error') return reply.status(res.ok ? 400 : res.status).send({ error: data?.message || 'Failed to toggle alert' });
+            return reply.send({ ok: true });
+        } catch (err: any) {
+            return reply.status(500).send({ error: err.message || 'Failed to toggle alert' });
+        }
+    });
+
     // POST /api/fyers/token — exchange auth_code for access + refresh tokens via SDK
     fastify.post('/api/fyers/token', async (request, reply) => {
         const { auth_code } = request.body as { auth_code: string };

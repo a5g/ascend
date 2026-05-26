@@ -914,15 +914,15 @@ export default function DashboardPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse table-fixed">
                 <colgroup>
-                  <col style={{ width: '200px' }} /> {/* Instrument */}
-                  <col style={{ width: '80px' }}  /> {/* Qty */}
-                  <col style={{ width: '110px' }} /> {/* Avg. Cost */}
-                  <col style={{ width: '110px' }} /> {/* LTP */}
-                  <col style={{ width: '120px' }} /> {/* Invested */}
-                  <col style={{ width: '120px' }} /> {/* Cur. Val */}
-                  <col style={{ width: '110px' }} /> {/* P&L */}
-                  <col style={{ width: '100px' }} /> {/* Net Chg */}
-                  <col style={{ width: '100px' }} /> {/* Day Chg */}
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '80px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-surface-container-high border-b border-outline-variant">

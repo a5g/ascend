@@ -1978,6 +1978,341 @@ function GttDeleteModal({ gtt, zerodha_user_id, onClose, onDeleted }: {
   );
 }
 
+// ── Fyers Alert types + helpers ───────────────────────────────────────────────
+
+interface FyersAlert {
+  id: string;
+  name: string;
+  symbol: string;
+  comparisonType: string;
+  condition: string;
+  value: number;
+  status: string | number;
+  message?: string;
+  createdDate?: string;
+  updatedDate?: string;
+}
+
+function alertConditionLabel(condition: string): string {
+  switch (condition?.toUpperCase()) {
+    case 'GTE': return '>=';
+    case 'LTE': return '<=';
+    case 'GT':  return '>';
+    case 'LT':  return '<';
+    default:    return condition ?? '?';
+  }
+}
+
+function alertStatusCls(status: string | number): string {
+  const s = String(status).toLowerCase();
+  if (s === 'active' || s === 'enabled' || s === '1')
+    return 'text-secondary bg-secondary/10 border border-secondary/30';
+  if (s === 'triggered' || s === '0' || s === '2')
+    return 'text-amber-400 bg-amber-400/10 border border-amber-400/30';
+  return 'text-on-surface-variant bg-surface-container-high border border-outline-variant';
+}
+
+function alertStatusLabel(status: string | number): string {
+  const s = String(status).toLowerCase();
+  if (s === '1') return 'Enabled';
+  if (s === '0' || s === '2') return 'Triggered';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ── AlertCreateModal ──────────────────────────────────────────────────────────
+
+interface AlertCreateModalProps {
+  alert: FyersAlert | null;     // null = create, FyersAlert = edit
+  symbol: string;               // Fyers symbol, e.g. "NSE:SBIN-EQ"
+  securityName: string;
+  ltp: number | null;
+  chp: number | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function AlertCreateModal({ alert, symbol, securityName, ltp, chp, onClose, onSaved }: AlertCreateModalProps) {
+  const isEdit = alert !== null;
+  const defaultCond = alert?.condition?.toUpperCase() === 'GTE' ? 'GTE' : 'LTE';
+  const [condition, setCondition] = useState<'GTE' | 'LTE'>(defaultCond as 'GTE' | 'LTE');
+  const [value,     setValue]     = useState(alert ? String(alert.value) : (ltp != null && ltp > 0 ? roundTo10p(ltp) : ''));
+  const [name,      setName]      = useState(alert?.name ?? '');
+  const [step,      setStep]      = useState<'form' | 'confirm'>('form');
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setTimeout(() => modalRef.current?.focus(), 50); }, []);
+  useEffect(() => { if (step === 'confirm') setTimeout(() => modalRef.current?.focus(), 50); }, [step]);
+
+  // Auto-generate name when condition/value changes (only if empty or auto-generated)
+  useEffect(() => {
+    if (!isEdit && value.trim()) {
+      const condLabel = condition === 'GTE' ? '>=' : '<=';
+      setName(`${symbol} ${condLabel} ${value}`);
+    }
+  }, [condition, value, symbol, isEdit]);
+
+  const valueNum = parseFloat(value);
+  const canSubmit = !isNaN(valueNum) && valueNum > 0;
+
+  const condLabel = condition === 'GTE' ? '>=' : '<=';
+
+  async function save() {
+    setSaving(true); setError(null);
+    try {
+      const url    = isEdit ? `/api/fyers/alerts/${alert!.id}` : '/api/fyers/alerts';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim() || `${symbol} ${condLabel} ${valueNum}`,
+          symbol,
+          comparisonType: 'CLOSE',
+          condition,
+          value: valueNum,
+        }),
+      });
+      const data = await res.json() as any;
+      if (!res.ok) { setError(data?.error || 'Save failed'); setStep('form'); }
+      else { onSaved(); onClose(); }
+    } catch { setError('Network error'); setStep('form'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onMouseDown={onClose}>
+      <div ref={modalRef}
+        className="w-[440px] bg-surface-container border border-amber-500/30 shadow-2xl outline-none"
+        onMouseDown={e => e.stopPropagation()} tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { onClose(); return; }
+          if (e.key === 'Enter') {
+            if (step === 'form' && canSubmit) { setStep('confirm'); return; }
+            if (step === 'confirm' && !saving) { save(); return; }
+          }
+        }}>
+        {/* Header */}
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-amber-400">notifications</span>
+            <span className="font-bold text-sm uppercase tracking-widest text-amber-400">
+              {isEdit ? 'Edit Alert' : 'Create Alert'}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Security info strip */}
+          <div className="bg-surface-container-high px-3 py-2 border border-outline-variant/30 flex items-center justify-between text-xs font-data-mono">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-on-surface font-bold">{securityName}</span>
+              <span className="text-on-surface-variant text-[10px] uppercase">{symbol}</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-on-surface font-bold">{ltp != null ? ltp.toFixed(2) : '—'}</span>
+              {chp != null && (
+                <span className={`text-[10px] ${chp >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                  {chp >= 0 ? '▲' : '▼'} {Math.abs(chp).toFixed(2)}%
+                </span>
+              )}
+            </div>
+          </div>
+
+          {step === 'form' ? (
+            <>
+              {/* Condition quick select */}
+              <div className="flex items-center gap-3">
+                <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Condition</span>
+                <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
+                  {(['GTE', 'LTE'] as const).map(c => (
+                    <button key={c} type="button" onClick={() => setCondition(c)}
+                      className={`px-6 py-1.5 font-data-mono text-sm font-bold transition-colors ${
+                        condition === c ? 'bg-amber-500 text-black' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                      }`}>
+                      {c === 'GTE' ? '>=' : '<='}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Value input */}
+              <div className="flex items-center gap-3">
+                <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Value</label>
+                <div className="flex-1 relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-xs">₹</span>
+                  <input type="text" inputMode="decimal" value={value}
+                    onChange={e => setValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="0.00"
+                    className="w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono pl-6 pr-3 py-1.5 text-sm focus:outline-none focus:border-amber-500/60" />
+                </div>
+                {ltp != null && ltp > 0 && (
+                  <span className="text-[10px] text-on-surface-variant shrink-0">
+                    {!isNaN(valueNum) && valueNum > 0 ? `${((valueNum - ltp) / ltp * 100).toFixed(1)}%` : ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Quick value shortcuts from LTP */}
+              {ltp != null && ltp > 0 && (
+                <div className="flex items-center gap-3">
+                  <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Quick</span>
+                  <div className="flex flex-wrap gap-1">
+                    {(condition === 'LTE'
+                      ? [[-5, '-5%'], [-10, '-10%'], [-15, '-15%'], [-20, '-20%']]
+                      : [[5, '+5%'], [10, '+10%'], [15, '+15%'], [20, '+20%']]
+                    ).map(([pct, lbl]) => (
+                      <button key={lbl} type="button"
+                        onClick={() => setValue(roundTo10p(ltp * (1 + (pct as number) / 100)))}
+                        className="px-2 py-0.5 text-[10px] font-data-mono bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-amber-500/50 transition-colors">
+                        {lbl as string}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alert name */}
+              <div className="flex items-center gap-3">
+                <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Name</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder={`${symbol} ${condLabel} ${value || '0'}`}
+                  className="flex-1 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/60" />
+              </div>
+
+              {error && <p className="text-[11px] text-tertiary font-data-mono">{error}</p>}
+
+              <button onClick={() => canSubmit && setStep('confirm')} disabled={!canSubmit}
+                className="w-full py-2 font-label-caps text-xs uppercase font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30">
+                Review Alert
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="bg-surface-container-high border border-outline-variant text-xs font-data-mono divide-y divide-outline-variant/30">
+                {[
+                  ['Symbol',    symbol],
+                  ['Condition', `LTP ${condLabel} ₹${valueNum.toFixed(2)}`],
+                  ['Name',      name.trim() || `${symbol} ${condLabel} ${valueNum}`],
+                  ['Type',      'LTP (CLOSE)'],
+                ].map(([k, v]) => (
+                  <div key={k} className="px-4 py-2.5 flex justify-between items-center">
+                    <span className="text-on-surface-variant text-[10px] uppercase font-label-caps">{k}</span>
+                    <span className="text-on-surface font-semibold text-right">{v}</span>
+                  </div>
+                ))}
+              </div>
+              {error && <p className="text-[11px] text-tertiary font-data-mono">{error}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setStep('form')} disabled={saving}
+                  className="flex-1 py-2 bg-surface-container-high text-on-surface font-label-caps text-xs uppercase hover:brightness-110 transition-all">
+                  Back
+                </button>
+                <button onClick={save} disabled={saving}
+                  className="flex-1 py-2 font-label-caps text-xs uppercase font-bold transition-all disabled:opacity-60 bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/30">
+                  {saving ? 'Saving…' : isEdit ? 'Confirm Edit' : 'Create Alert'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AlertDeleteModal ──────────────────────────────────────────────────────────
+
+function AlertDeleteModal({ alerts, onClose, onDeleted }: {
+  alerts: FyersAlert[]; onClose: () => void; onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setTimeout(() => modalRef.current?.focus(), 50); }, []);
+
+  async function handleDelete() {
+    setDeleting(true); setError(null);
+    try {
+      const results = await Promise.allSettled(
+        alerts.map(a =>
+          fetch(`/api/fyers/alerts/${a.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          }).then(async r => {
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({})) as any;
+              throw new Error(d?.error || `HTTP ${r.status}`);
+            }
+            return r;
+          })
+        )
+      );
+      const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[];
+      if (failures.length > 0) setError(failures[0].reason?.message || `${failures.length} deletion(s) failed`);
+      else { onDeleted(); onClose(); }
+    } catch { setError('Network error'); }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onMouseDown={onClose}>
+      <div ref={modalRef}
+        className="w-[420px] bg-surface-container border border-tertiary/30 shadow-2xl outline-none"
+        onMouseDown={e => e.stopPropagation()} tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { onClose(); return; }
+          if (e.key === 'Enter' && !deleting) handleDelete();
+        }}>
+        <div className="bg-tertiary/10 border-b border-tertiary/20 px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-tertiary">delete</span>
+            <span className="font-bold text-sm uppercase tracking-widest text-tertiary">
+              Delete {alerts.length > 1 ? `${alerts.length} Alerts` : 'Alert'}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-on-surface-variant">
+            {alerts.length === 1
+              ? <>Delete alert for <span className="font-bold text-on-surface">{alerts[0].symbol}</span>? This cannot be undone.</>
+              : <>Delete <span className="font-bold text-on-surface">{alerts.length}</span> selected alerts? This cannot be undone.</>}
+          </p>
+          {alerts.length <= 5 && (
+            <div className="bg-surface-container-high border border-outline-variant text-xs font-data-mono divide-y divide-outline-variant/20 max-h-40 overflow-y-auto">
+              {alerts.map(a => (
+                <div key={a.id} className="px-4 py-2 flex justify-between gap-2">
+                  <span className="text-on-surface truncate">{a.name || a.symbol}</span>
+                  <span className="text-on-surface-variant shrink-0">{alertConditionLabel(a.condition)} {Number(a.value).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {error && <p className="text-[11px] text-tertiary font-data-mono">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={onClose} disabled={deleting}
+              className="flex-1 py-2 bg-surface-container-high text-on-surface font-label-caps text-xs uppercase hover:brightness-110 transition-all">
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting}
+              className="flex-1 py-2 font-label-caps text-xs uppercase font-bold transition-all disabled:opacity-40 bg-tertiary/20 border border-tertiary/50 text-tertiary hover:bg-tertiary/30">
+              {deleting ? 'Deleting…' : `Delete ${alerts.length > 1 ? `(${alerts.length})` : ''}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── GTT status badge helper ───────────────────────────────────────────────────
 
 function gttStatusCls(status: string): string {
@@ -1995,7 +2330,7 @@ function gttStatusCls(status: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function BulkOrderPage() {
-  const [activeTab, setActiveTab] = useState<'buy' | 'sell' | 'gtt'>('buy');
+  const [activeTab, setActiveTab] = useState<'buy' | 'sell' | 'gtt' | 'alerts'>('buy');
   const [exitType, setExitType] = useState<'full' | 'partial'>('partial');
   const [activePct, setActivePct] = useState('50%');
   const [customPct, setCustomPct] = useState('');
@@ -2031,6 +2366,14 @@ export default function BulkOrderPage() {
   const [gttDeleteModal, setGttDeleteModal] = useState<KiteGTT | null>(null);
   const [gttNewSide,     setGttNewSide]     = useState<'BUY' | 'SELL' | null>(null);
   const [showBuyMultipleConfirm, setShowBuyMultipleConfirm] = useState(false);
+
+  // Alerts management
+  const [alerts,           setAlerts]           = useState<FyersAlert[]>([]);
+  const [alertsLoading,    setAlertsLoading]    = useState(false);
+  const [alertsLtps,       setAlertsLtps]       = useState<Record<string, number | null>>({});
+  const [alertCreateModal, setAlertCreateModal] = useState<FyersAlert | 'new' | null>(null);
+  const [alertDeleteModal, setAlertDeleteModal] = useState<FyersAlert[] | null>(null);
+  const [alertsChecked,    setAlertsChecked]    = useState<string[]>([]);
 
   // Orders panel state
   const [selectedOrdersUserId, setSelectedOrdersUserId] = useState('');
@@ -2511,11 +2854,43 @@ export default function BulkOrderPage() {
       .finally(() => setGttLoading(false));
   }
 
+  function fetchAlerts() {
+    setAlertsLoading(true);
+    fetch('/api/fyers/alerts')
+      .then(r => r.json())
+      .then(res => {
+        const raw = res.data;
+        const list: FyersAlert[] = Array.isArray(raw) ? raw : [];
+        setAlerts(list);
+        const symbols = [...new Set(list.map(a => a.symbol))];
+        if (symbols.length > 0) {
+          fetch('/api/fyers/quotes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbols }),
+          })
+            .then(r => r.json())
+            .then(qres => {
+              const ltps: Record<string, number | null> = {};
+              for (const sym of symbols) ltps[sym] = qres.data?.[sym]?.lp ?? null;
+              setAlertsLtps(ltps);
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAlertsLoading(false));
+  }
+
   useEffect(() => {
     fetchOrders(selectedOrdersUserId);
     fetchPositions(selectedOrdersUserId);
     fetchGttOrders(selectedOrdersUserId);
   }, [selectedOrdersUserId]);
+
+  useEffect(() => {
+    if (activeTab === 'alerts') fetchAlerts();
+  }, [activeTab]);
 
   function handleOrderUserKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setFocusedOrderUserIdx(i => Math.min(i + 1, filteredOrderUsers.length - 1)); }
@@ -2651,9 +3026,10 @@ export default function BulkOrderPage() {
             {/* Tab Headers */}
             <div className="flex border-b border-outline-variant bg-surface-container">
               {([
-                { id: 'buy',  label: 'Buy',  icon: 'shopping_cart', activeCls: 'bg-secondary text-on-secondary border-secondary'         },
-                { id: 'sell', label: 'Sell', icon: 'sell',          activeCls: 'bg-tertiary text-on-tertiary border-tertiary'             },
-                { id: 'gtt',  label: 'GTT',  icon: 'trip_origin',   activeCls: 'bg-primary text-on-primary border-primary'               },
+                { id: 'buy',    label: 'Buy',    icon: 'shopping_cart', activeCls: 'bg-secondary text-on-secondary border-secondary'   },
+                { id: 'sell',   label: 'Sell',   icon: 'sell',          activeCls: 'bg-tertiary text-on-tertiary border-tertiary'       },
+                { id: 'gtt',    label: 'GTT',    icon: 'trip_origin',   activeCls: 'bg-primary text-on-primary border-primary'          },
+                { id: 'alerts', label: 'Alerts', icon: 'notifications', activeCls: 'bg-amber-600 text-white border-amber-600'           },
               ] as const).map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                   className={`px-8 py-3 font-label-caps text-xs tracking-wider uppercase transition-colors flex items-center gap-2 border-b-2 ${
@@ -3363,6 +3739,192 @@ export default function BulkOrderPage() {
               </div>
             )}
 
+            {/* ALERTS TAB */}
+            {activeTab === 'alerts' && (
+              <div className="space-y-6 mt-6">
+                <section className="bg-surface-container border border-outline-variant">
+                  <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-400 text-sm">notifications</span>
+                      <h2 className="font-label-caps text-label-caps text-on-surface uppercase">Price Alerts</h2>
+                      {alerts.length > 0 && (
+                        <span className="font-label-caps text-[10px] text-amber-400">({alerts.length})</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {alertsLoading && (
+                        <span className="material-symbols-outlined text-on-surface-variant animate-spin" style={{ fontSize: '14px' }}>progress_activity</span>
+                      )}
+                      {alerts.some(a => String(a.status) === '0' || String(a.status) === '2') && (
+                        <button
+                          onClick={() => {
+                            const triggered = alerts.filter(a => String(a.status) === '0' || String(a.status) === '2');
+                            setAlertDeleteModal(triggered);
+                          }}
+                          className="flex items-center gap-1 bg-tertiary/15 text-tertiary border border-tertiary/30 font-label-caps text-[10px] uppercase px-3 py-1.5 hover:bg-tertiary/25 transition-colors">
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>notifications_off</span>
+                          Clear Triggered
+                        </button>
+                      )}
+                      {selectedSecurity && (
+                        <button onClick={() => setAlertCreateModal('new')}
+                          className="flex items-center gap-1 bg-amber-600 text-white font-label-caps text-[10px] uppercase px-3 py-1.5 hover:brightness-110 transition-all">
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+                          New Alert
+                        </button>
+                      )}
+                      <button onClick={fetchAlerts} title="Refresh alerts"
+                        className="p-1.5 text-on-surface-variant hover:text-on-surface border border-outline-variant hover:border-amber-500 transition-colors">
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {alertsChecked.length > 0 && (
+                    <div className="px-4 py-2 bg-amber-500/5 border-b border-amber-500/20 flex items-center gap-2">
+                      <span className="font-label-caps text-[10px] text-amber-400">{alertsChecked.length} selected</span>
+                      <button
+                        onClick={async () => {
+                          await Promise.allSettled(alertsChecked.map(id =>
+                            fetch(`/api/fyers/alerts/${id}/toggle`, { method: 'PUT', headers: { 'Content-Type': 'application/json' } })
+                          ));
+                          setAlertsChecked([]);
+                          fetchAlerts();
+                        }}
+                        className="flex items-center gap-1 bg-secondary/15 text-secondary border border-secondary/30 font-label-caps text-[10px] uppercase px-2 py-1 hover:bg-secondary/25 transition-colors">
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>toggle_on</span>
+                        Toggle
+                      </button>
+                      <button
+                        onClick={() => {
+                          const sel = alerts.filter(a => alertsChecked.includes(a.id));
+                          if (sel.length > 0) setAlertDeleteModal(sel);
+                        }}
+                        className="flex items-center gap-1 bg-tertiary/15 text-tertiary border border-tertiary/30 font-label-caps text-[10px] uppercase px-2 py-1 hover:bg-tertiary/25 transition-colors">
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>delete</span>
+                        Delete
+                      </button>
+                    </div>
+                  )}
+
+                  {alertsLoading && alerts.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-on-surface-variant font-label-caps">Loading…</div>
+                  ) : alerts.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-on-surface-variant font-label-caps">
+                      {selectedSecurity ? 'No alerts. Click "+ New Alert" to create one.' : 'No alerts found.'}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-outline-variant bg-surface-container-low font-label-caps text-[10px] text-on-surface-variant uppercase">
+                            <th className="px-4 py-2 w-8">
+                              <input type="checkbox"
+                                checked={alertsChecked.length === alerts.length && alerts.length > 0}
+                                onChange={e => setAlertsChecked(e.target.checked ? alerts.map(a => a.id) : [])}
+                                className="accent-amber-500 w-3.5 h-3.5"
+                              />
+                            </th>
+                            <th className="px-4 py-2">Symbol</th>
+                            <th className="px-4 py-2">Condition</th>
+                            <th className="px-4 py-2 text-right">Alert ₹</th>
+                            <th className="px-4 py-2 text-right">LTP</th>
+                            <th className="px-4 py-2 text-center">Status</th>
+                            <th className="px-4 py-2 text-right">Updated</th>
+                          </tr>
+                        </thead>
+                        <tbody className="font-data-mono text-[11px] divide-y divide-outline-variant/10">
+                          {alerts.map(a => {
+                            const symLtp = alertsLtps[a.symbol] ?? null;
+                            const diff = symLtp != null ? ((a.value - symLtp) / symLtp) * 100 : null;
+                            return (
+                              <tr key={a.id} className="hover:bg-surface-container-high transition-colors group/arow">
+                                <td className="px-4 py-3">
+                                  <input type="checkbox"
+                                    checked={alertsChecked.includes(a.id)}
+                                    onChange={e => setAlertsChecked(s =>
+                                      e.target.checked ? [...s, a.id] : s.filter(id => id !== a.id)
+                                    )}
+                                    className="accent-amber-500 w-3.5 h-3.5"
+                                  />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-on-surface font-bold text-[11px] leading-tight">
+                                      {a.symbol.split(':')[1]?.replace(/-EQ$|-BE$/, '') ?? a.symbol}
+                                    </span>
+                                    <div className="opacity-0 group-hover/arow:opacity-100 transition-opacity flex items-center gap-0.5 ml-1 shrink-0">
+                                      <button onClick={() => setAlertCreateModal(a)} title="Edit alert"
+                                        className="p-0.5 bg-primary/15 text-primary hover:bg-primary/30 transition-colors">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>edit</span>
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          const r = await fetch(`/api/fyers/alerts/${a.id}/toggle`, {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({}),
+                                          });
+                                          if (!r.ok) {
+                                            const d = await r.json().catch(() => ({})) as any;
+                                            alert(d?.error || 'Toggle failed');
+                                          }
+                                          fetchAlerts();
+                                        }}
+                                        title="Toggle alert"
+                                        className="p-0.5 bg-secondary/15 text-secondary hover:bg-secondary/30 transition-colors">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>
+                                          {String(a.status) === '1' || a.status === 'active' ? 'pause' : 'play_arrow'}
+                                        </span>
+                                      </button>
+                                      <button onClick={() => setAlertDeleteModal([a])} title="Delete alert"
+                                        className="p-0.5 bg-tertiary/15 text-tertiary hover:bg-tertiary/30 transition-colors">
+                                        <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>delete</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="font-label-caps text-[9px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                    {alertConditionLabel(a.condition)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-on-surface">
+                                  ₹{inrDec(a.value)}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {symLtp != null ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-on-surface">₹{inrDec(symLtp)}</span>
+                                      {diff != null && (
+                                        <span className={`text-[9px] ${diff >= 0 ? 'text-secondary' : 'text-tertiary'}`}>
+                                          {diff >= 0 ? '+' : ''}{diff.toFixed(2)}%
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : '—'}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`font-label-caps text-[9px] px-2 py-0.5 ${alertStatusCls(a.status)}`}>
+                                    {alertStatusLabel(a.status)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="text-on-surface-variant text-[9px] font-data-mono">
+                                    {a.updatedDate ? a.updatedDate.split(' ')[0] : (a.createdDate ? a.createdDate.split(' ')[0] : '—')}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+
           </div>
 
           {/* RIGHT PANEL — Orders */}
@@ -3862,6 +4424,37 @@ export default function BulkOrderPage() {
           zerodha_user_id={selectedOrdersUserId}
           onClose={() => setCancelModal(null)}
           onCancelled={() => { setCancelModal(null); fetchOrders(selectedOrdersUserId); }}
+        />
+      )}
+
+      {alertCreateModal !== null && (alertCreateModal === 'new' ? !!selectedSecurity : true) && (() => {
+        const isEdit = alertCreateModal !== 'new';
+        const editAlert = isEdit ? alertCreateModal : null;
+        const sym  = isEdit
+          ? editAlert!.symbol
+          : `${selectedSecurity!.exchange}:${selectedSecurity!.symbol}-${selectedSecurity!.series}`;
+        const name = isEdit
+          ? (editAlert!.symbol.split(':')[1]?.replace(/-EQ$|-BE$/, '') ?? editAlert!.symbol)
+          : selectedSecurity!.name_of_company;
+        const editLtp = isEdit ? (alertsLtps[editAlert!.symbol] ?? null) : ltp;
+        return (
+          <AlertCreateModal
+            alert={editAlert}
+            symbol={sym}
+            securityName={name}
+            ltp={editLtp}
+            chp={isEdit ? null : chp}
+            onClose={() => setAlertCreateModal(null)}
+            onSaved={() => { setAlertCreateModal(null); fetchAlerts(); }}
+          />
+        );
+      })()}
+
+      {alertDeleteModal && (
+        <AlertDeleteModal
+          alerts={alertDeleteModal}
+          onClose={() => setAlertDeleteModal(null)}
+          onDeleted={() => { setAlertDeleteModal(null); setAlertsChecked([]); fetchAlerts(); }}
         />
       )}
     </div>
