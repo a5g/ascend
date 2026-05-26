@@ -73,6 +73,9 @@ function computeFY(buyDate: string | null): string {
   return `FY${String(y - 1).slice(2)}-${String(y).slice(2)}`;
 }
 
+const fyersKey = (instrument: string) =>
+  instrument.endsWith('-BE') ? `NSE:${instrument}` : `NSE:${instrument}-EQ`;
+
 function fmtAmt(n: number): string {
   const abs = Math.abs(n);
   const sign = n < 0 ? '-' : '';
@@ -141,6 +144,7 @@ const COLS: { key: string; label: string; w: number; right?: boolean }[] = [
 
 const PCT_OPTIONS = ['25%', '33%', '50%', '75%', '100%'];
 const inrDec = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const roundTo10p = (v: number) => (Math.round(v * 10) / 10).toFixed(2);
 
 // ─── Multi-select dropdown ────────────────────────────────────────────────────
 
@@ -240,6 +244,7 @@ interface EditTradeModalProps {
 }
 
 function EditTradeModal({ row, allMethods, allAccounts, onClose, onSaved }: EditTradeModalProps) {
+  const [instrument, setInstrument] = useState(row.instrument);
   const [method,     setMethod]     = useState(row.method);
   const [account,    setAccount]    = useState(row.account);
   const [qty,        setQty]        = useState(String(row.qty));
@@ -267,6 +272,7 @@ function EditTradeModal({ row, allMethods, allAccounts, onClose, onSaved }: Edit
   const pushIfChanged = (label: string, oldVal: string, newVal: string) => {
     if (oldVal !== newVal) changes.push({ label, oldVal: oldVal || '—', newVal: newVal || '—' });
   };
+  pushIfChanged('Instrument',        row.instrument,                                      instrument.trim().toUpperCase());
   pushIfChanged('Method',            row.method,                                          method);
   pushIfChanged('Account',           row.account,                                         account);
   pushIfChanged('Qty',               String(row.qty),                                     qty);
@@ -284,6 +290,7 @@ function EditTradeModal({ row, allMethods, allAccounts, onClose, onSaved }: Edit
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          instrument: instrument.trim().toUpperCase(),
           method,
           account,
           qty:        qtyNum,
@@ -399,6 +406,13 @@ function EditTradeModal({ row, allMethods, allAccounts, onClose, onSaved }: Edit
                   {saveError}
                 </div>
               )}
+
+              <div>
+                <label className={labelCls}>Instrument</label>
+                <input type="text" value={instrument}
+                  onChange={e => setInstrument(e.target.value.toUpperCase())}
+                  className={inputCls} />
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1170,11 +1184,13 @@ interface JournalSellModalProps {
   instrument: string;
   accounts: string[];
   ltp: number | null;
+  chp: number | null;
   userMap: Record<string, JournalUser>;
   onClose: () => void;
+  onToggle?: () => void;
 }
 
-function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: JournalSellModalProps) {
+function JournalSellModal({ instrument, accounts, ltp, chp, userMap, onClose, onToggle }: JournalSellModalProps) {
   const [holdings, setHoldings] = useState<JournalHolding[]>([]);
   const [loadingHoldings, setLoadingHoldings] = useState(true);
   const [exitType, setExitType] = useState<'full' | 'partial'>('partial');
@@ -1182,8 +1198,9 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
   const [customPct, setCustomPct] = useState('');
   const [qtyOverrides, setQtyOverrides] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
-  const [limitPrice, setLimitPrice] = useState(ltp != null && ltp > 0 ? ltp.toFixed(2) : '');
+  const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET' | 'GTT'>('LIMIT');
+  const [price, setPrice] = useState(ltp != null && ltp > 0 ? roundTo10p(ltp) : '');
+  const [triggerPct, setTriggerPct] = useState('');
   const [step, setStep] = useState<'form' | 'confirm' | 'done'>('form');
   const [placing, setPlacing] = useState(false);
   const [orderResults, setOrderResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
@@ -1225,6 +1242,25 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
     fetchHoldings();
   }, [instrument, accounts, userMap]);
 
+  const gttExpiry = new Date(); gttExpiry.setFullYear(gttExpiry.getFullYear() + 2);
+  const gttExpiryStr = gttExpiry.toISOString().slice(0, 10);
+
+  function handlePriceChange(val: string) {
+    setPrice(val);
+    if (orderType === 'GTT' && ltp != null && ltp > 0) {
+      const p = parseFloat(val);
+      setTriggerPct(!isNaN(p) ? ((p - ltp) / ltp * 100).toFixed(2) : '');
+    }
+  }
+
+  function handlePctChange(val: string) {
+    setTriggerPct(val);
+    if (ltp != null && ltp > 0) {
+      const pct = parseFloat(val);
+      if (!isNaN(pct)) setPrice(roundTo10p(ltp * (1 + pct / 100)));
+    }
+  }
+
   function effectivePct(): number {
     if (exitType === 'full') return 100;
     const c = parseFloat(customPct);
@@ -1246,33 +1282,51 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
   }
 
   const selectedHoldings = holdings.filter(h => selected[h.zerodha_user_id] && computeSellQty(h) > 0);
-  const canReview = selectedHoldings.length > 0 && (orderType === 'MARKET' || parseFloat(limitPrice) > 0);
+  const canReview = selectedHoldings.length > 0 && (orderType === 'MARKET' || parseFloat(price) > 0);
 
   async function placeOrders() {
     setPlacing(true);
     const results: Record<string, { ok: boolean; msg: string }> = {};
     for (const h of selectedHoldings) {
       try {
-        const res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            zerodha_user_id: h.zerodha_user_id,
-            exchange: 'NSE',
-            tradingSymbol: instrument,
-            transaction_type: 'SELL',
-            order_type: orderType,
-            price: orderType === 'LIMIT' ? parseFloat(limitPrice) : 0,
-            qty: computeSellQty(h),
-            variety: 'regular', product: 'CNC', validity: 'DAY',
-            disclosed_quantity: 0, trigger_price: 0,
-            squareoff: 0, stoploss: 0, trailing_stoploss: 0,
-          }),
-        });
+        let res: Response;
+        if (orderType === 'GTT') {
+          res = await fetch('/api/gtt/triggers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zerodha_user_id: h.zerodha_user_id,
+              exchange: 'NSE',
+              tradingsymbol: instrument,
+              transaction_type: 'SELL',
+              qty: computeSellQty(h),
+              trigger_price: parseFloat(price),
+              last_price: ltp ?? 0,
+            }),
+          });
+        } else {
+          res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zerodha_user_id: h.zerodha_user_id,
+              exchange: 'NSE',
+              tradingSymbol: instrument,
+              transaction_type: 'SELL',
+              order_type: orderType,
+              price: orderType === 'LIMIT' ? parseFloat(price) : 0,
+              qty: computeSellQty(h),
+              variety: 'regular', product: 'CNC', validity: 'DAY',
+              disclosed_quantity: 0, trigger_price: 0,
+              squareoff: 0, stoploss: 0, trailing_stoploss: 0,
+            }),
+          });
+        }
         const data = await res.json() as any;
+        const id = data?.data?.order_id ?? data?.data?.trigger_id;
         results[h.zerodha_user_id] = {
           ok: res.ok,
-          msg: res.ok ? (data?.data?.order_id ? `#${data.data.order_id}` : 'Placed') : (data?.error || 'Failed'),
+          msg: res.ok ? (id ? `#${id}` : 'Placed') : (data?.error || 'Failed'),
         };
       } catch {
         results[h.zerodha_user_id] = { ok: false, msg: 'Network error' };
@@ -1308,9 +1362,17 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
             <span className={`material-symbols-outlined text-base ${titleCls}`}>sell</span>
             <span className={`font-bold text-sm uppercase tracking-widest ${titleCls}`}>SELL — {instrument}</span>
           </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {step !== 'done' && onToggle && (
+              <button onClick={onToggle}
+                className="px-2 py-0.5 text-xs font-bold bg-secondary/20 border border-secondary/40 text-secondary hover:bg-secondary/30 transition-colors">
+                B
+              </button>
+            )}
+            <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -1339,9 +1401,10 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
               <div className="bg-surface-container-high border border-outline-variant divide-y divide-outline-variant/30 text-xs font-data-mono">
                 {selectedHoldings.map(h => {
                   const qty = computeSellQty(h);
-                  const effPrice = orderType === 'LIMIT' ? parseFloat(limitPrice) : (ltp ?? 0);
+                  const priceVal = parseFloat(price);
+                  const effPrice = orderType === 'GTT' || orderType === 'LIMIT' ? priceVal : (ltp ?? 0);
                   const amt = qty * effPrice;
-                  const fee = amt * 0.00119063431;
+                  const fee = orderType === 'GTT' ? 0 : amt * 0.00119063431;
                   return (
                     <div key={h.zerodha_user_id} className="px-4 py-3 space-y-1.5">
                       <div className="flex justify-between">
@@ -1352,8 +1415,13 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
                         <span className="text-on-surface">{instrument} · SELL · {qty} qty</span>
                       </div>
                       <div className="flex justify-between text-on-surface-variant">
-                        <span>{orderType}{orderType === 'LIMIT' ? ` @ ₹${inrDec(parseFloat(limitPrice))}` : ' (market)'}</span>
-                        <span className={titleCls}>Est. ₹{inrDec(amt - fee)}</span>
+                        {orderType === 'GTT'
+                          ? <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary font-bold">GTT · SINGLE · CNC · {gttExpiryStr}</span>
+                          : <span>{orderType}{orderType === 'LIMIT' ? ` @ ₹${inrDec(priceVal)}` : ' (market)'}</span>
+                        }
+                        <span className={titleCls}>
+                          {orderType === 'GTT' ? `Trigger ₹${inrDec(priceVal)}` : `Est. ₹${inrDec(amt - fee)}`}
+                        </span>
                       </div>
                     </div>
                   );
@@ -1372,27 +1440,61 @@ function JournalSellModal({ instrument, accounts, ltp, userMap, onClose }: Journ
             </div>
           ) : (
             <>
-              {/* LTP + order type strip */}
+              {/* LTP strip */}
               <div className="bg-surface-container-high px-3 py-2 border border-outline-variant/30 flex items-center justify-between text-xs font-data-mono">
-                <span className="text-on-surface-variant">LTP: <strong className={titleCls}>{ltp != null ? inrDec(ltp) : '—'}</strong></span>
-                <div className="flex items-center gap-3">
-                  <span className="font-label-caps text-[10px] text-on-surface-variant uppercase">Order Type</span>
-                  <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
-                    {(['LIMIT', 'MARKET'] as const).map(ot => (
-                      <button key={ot} type="button" onClick={() => setOrderType(ot)}
-                        className={`px-3 py-0.5 font-label-caps text-[10px] uppercase transition-colors ${
-                          orderType === ot ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
-                        }`}>{ot}</button>
-                    ))}
-                  </div>
-                  {orderType === 'LIMIT' && (
-                    <input type="text" inputMode="decimal" value={limitPrice}
-                      onChange={e => setLimitPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                      placeholder="Limit price"
-                      className="w-24 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-0.5 text-xs focus:outline-none focus:border-primary" />
+                <span className="text-on-surface-variant font-label-caps text-[10px] uppercase">{instrument}</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-on-surface font-bold">{ltp != null && ltp > 0 ? inrDec(ltp) : '—'}</span>
+                  {chp != null && ltp != null && ltp > 0 && (
+                    <span className={`text-[10px] font-data-mono ${chp > 0 ? 'text-secondary' : chp < 0 ? 'text-tertiary' : 'text-on-surface-variant'}`}>
+                      {(() => { const ch = ltp - ltp / (1 + chp / 100); return `${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chp >= 0 ? '+' : ''}${chp.toFixed(2)}%)`; })()}
+                    </span>
                   )}
                 </div>
               </div>
+
+              {/* Order type */}
+              <div className="flex items-center gap-3">
+                <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Order Type</span>
+                <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
+                  {(['LIMIT', 'MARKET', 'GTT'] as const).map(ot => (
+                    <button key={ot} type="button" onClick={() => setOrderType(ot)}
+                      className={`px-4 py-1 font-label-caps text-[10px] uppercase transition-colors ${
+                        orderType === ot ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                      }`}>{ot}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* GTT trigger price + % */}
+              {orderType === 'GTT' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Trigger Price</label>
+                    <input type="text" inputMode="decimal" value={price}
+                      onChange={e => handlePriceChange(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none focus:border-primary" />
+                    <input type="text" inputMode="decimal" value={triggerPct}
+                      onChange={e => handlePctChange(e.target.value.replace(/[^0-9.\-]/g, ''))}
+                      className="w-20 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-1.5 text-sm focus:outline-none focus:border-primary text-right" />
+                    <span className="text-[10px] text-on-surface-variant shrink-0">%LTP</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant pl-[calc(1.5rem+6rem)]">
+                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>info</span>
+                    Single · CNC · LIMIT · Expires {gttExpiryStr}
+                  </div>
+                </div>
+              )}
+
+              {/* Limit price */}
+              {orderType === 'LIMIT' && (
+                <div className="flex items-center gap-3">
+                  <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Price</label>
+                  <input type="text" inputMode="decimal" value={price}
+                    onChange={e => setPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                    className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none focus:border-primary" />
+                </div>
+              )}
 
               {/* Exit type */}
               <div className="flex items-center gap-3">
@@ -1512,13 +1614,16 @@ interface JournalBuyModalProps {
   instrument: string;
   accounts: string[];
   ltp: number | null;
+  chp: number | null;
   userMap: Record<string, JournalUser>;
   onClose: () => void;
+  onToggle?: () => void;
 }
 
-function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: JournalBuyModalProps) {
-  const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
-  const [price, setPrice] = useState(ltp != null && ltp > 0 ? ltp.toFixed(2) : '');
+function JournalBuyModal({ instrument, accounts, ltp, chp, userMap, onClose, onToggle }: JournalBuyModalProps) {
+  const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET' | 'GTT'>('LIMIT');
+  const [price, setPrice] = useState(ltp != null && ltp > 0 ? roundTo10p(ltp) : '');
+  const [triggerPct, setTriggerPct] = useState('');
   const [qtyMap, setQtyMap] = useState<Record<string, string>>({});
   const [margins, setMargins] = useState<Record<string, number | null | undefined>>({});
   const [selected, setSelected] = useState<Record<string, boolean>>(
@@ -1543,8 +1648,27 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
     }
   }, [accounts]);
 
+  const gttExpiry = new Date(); gttExpiry.setFullYear(gttExpiry.getFullYear() + 2);
+  const gttExpiryStr = gttExpiry.toISOString().slice(0, 10);
+
+  function handlePriceChange(val: string) {
+    setPrice(val);
+    if (orderType === 'GTT' && ltp != null && ltp > 0) {
+      const p = parseFloat(val);
+      setTriggerPct(!isNaN(p) ? ((p - ltp) / ltp * 100).toFixed(2) : '');
+    }
+  }
+
+  function handlePctChange(val: string) {
+    setTriggerPct(val);
+    if (ltp != null && ltp > 0) {
+      const pct = parseFloat(val);
+      if (!isNaN(pct)) setPrice(roundTo10p(ltp * (1 + pct / 100)));
+    }
+  }
+
   const priceNum = parseFloat(price);
-  const effectivePrice = orderType === 'LIMIT' ? priceNum : (ltp ?? 0);
+  const effectivePrice = orderType === 'LIMIT' || orderType === 'GTT' ? priceNum : (ltp ?? 0);
 
   const selectedAccounts = accounts.filter(a => selected[a] && parseInt(qtyMap[a] || '0', 10) > 0);
   const canReview = selectedAccounts.length > 0 && (orderType === 'MARKET' || priceNum > 0);
@@ -1555,26 +1679,44 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
     for (const acct of selectedAccounts) {
       const qty = parseInt(qtyMap[acct] || '0', 10);
       try {
-        const res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            zerodha_user_id: acct,
-            exchange: 'NSE',
-            tradingSymbol: instrument,
-            transaction_type: 'BUY',
-            order_type: orderType,
-            price: orderType === 'LIMIT' ? priceNum : 0,
-            qty,
-            variety: 'regular', product: 'CNC', validity: 'DAY',
-            disclosed_quantity: 0, trigger_price: 0,
-            squareoff: 0, stoploss: 0, trailing_stoploss: 0,
-          }),
-        });
+        let res: Response;
+        if (orderType === 'GTT') {
+          res = await fetch('/api/gtt/triggers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zerodha_user_id: acct,
+              exchange: 'NSE',
+              tradingsymbol: instrument,
+              transaction_type: 'BUY',
+              qty,
+              trigger_price: priceNum,
+              last_price: ltp ?? 0,
+            }),
+          });
+        } else {
+          res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zerodha_user_id: acct,
+              exchange: 'NSE',
+              tradingSymbol: instrument,
+              transaction_type: 'BUY',
+              order_type: orderType,
+              price: orderType === 'LIMIT' ? priceNum : 0,
+              qty,
+              variety: 'regular', product: 'CNC', validity: 'DAY',
+              disclosed_quantity: 0, trigger_price: 0,
+              squareoff: 0, stoploss: 0, trailing_stoploss: 0,
+            }),
+          });
+        }
         const data = await res.json() as any;
+        const id = data?.data?.order_id ?? data?.data?.trigger_id;
         results[acct] = {
           ok: res.ok,
-          msg: res.ok ? (data?.data?.order_id ? `#${data.data.order_id}` : 'Placed') : (data?.error || 'Failed'),
+          msg: res.ok ? (id ? `#${id}` : 'Placed') : (data?.error || 'Failed'),
         };
       } catch {
         results[acct] = { ok: false, msg: 'Network error' };
@@ -1610,9 +1752,17 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
             <span className={`material-symbols-outlined text-base ${titleCls}`}>add_shopping_cart</span>
             <span className={`font-bold text-sm uppercase tracking-widest ${titleCls}`}>BUY — {instrument}</span>
           </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {step !== 'done' && onToggle && (
+              <button onClick={onToggle}
+                className="px-2 py-0.5 text-xs font-bold bg-tertiary/20 border border-tertiary/40 text-tertiary hover:bg-tertiary/30 transition-colors">
+                S
+              </button>
+            )}
+            <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -1642,7 +1792,7 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
                 {selectedAccounts.map(acct => {
                   const qty = parseInt(qtyMap[acct] || '0', 10);
                   const amt = qty * effectivePrice;
-                  const fee = amt * 0.00119063431;
+                  const fee = orderType === 'GTT' ? 0 : amt * 0.00119063431;
                   return (
                     <div key={acct} className="px-4 py-3 space-y-1.5">
                       <div className="flex justify-between">
@@ -1653,8 +1803,13 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
                         <span className="text-on-surface">{instrument} · BUY · {qty} qty</span>
                       </div>
                       <div className="flex justify-between text-on-surface-variant">
-                        <span>{orderType}{orderType === 'LIMIT' ? ` @ ₹${inrDec(priceNum)}` : ' (market)'}</span>
-                        <span className={titleCls}>Total ₹{inrDec(amt + fee)}</span>
+                        {orderType === 'GTT'
+                          ? <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary font-bold">GTT · SINGLE · CNC · {gttExpiryStr}</span>
+                          : <span>{orderType}{orderType === 'LIMIT' ? ` @ ₹${inrDec(priceNum)}` : ' (market)'}</span>
+                        }
+                        <span className={titleCls}>
+                          {orderType === 'GTT' ? `Trigger ₹${inrDec(priceNum)}` : `Total ₹${inrDec(amt + fee)}`}
+                        </span>
                       </div>
                     </div>
                   );
@@ -1673,27 +1828,61 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
             </div>
           ) : (
             <>
-              {/* LTP + order type strip */}
+              {/* LTP strip */}
               <div className="bg-surface-container-high px-3 py-2 border border-outline-variant/30 flex items-center justify-between text-xs font-data-mono">
-                <span className="text-on-surface-variant">LTP: <strong className={titleCls}>{ltp != null ? inrDec(ltp) : '—'}</strong></span>
-                <div className="flex items-center gap-3">
-                  <span className="font-label-caps text-[10px] text-on-surface-variant uppercase">Order Type</span>
-                  <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
-                    {(['LIMIT', 'MARKET'] as const).map(ot => (
-                      <button key={ot} type="button" onClick={() => setOrderType(ot)}
-                        className={`px-3 py-0.5 font-label-caps text-[10px] uppercase transition-colors ${
-                          orderType === ot ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
-                        }`}>{ot}</button>
-                    ))}
-                  </div>
-                  {orderType === 'LIMIT' && (
-                    <input type="text" inputMode="decimal" value={price}
-                      onChange={e => setPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                      placeholder="Price"
-                      className="w-24 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-0.5 text-xs focus:outline-none focus:border-primary" />
+                <span className="text-on-surface-variant font-label-caps text-[10px] uppercase">{instrument}</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-on-surface font-bold">{ltp != null && ltp > 0 ? inrDec(ltp) : '—'}</span>
+                  {chp != null && ltp != null && ltp > 0 && (
+                    <span className={`text-[10px] font-data-mono ${chp > 0 ? 'text-secondary' : chp < 0 ? 'text-tertiary' : 'text-on-surface-variant'}`}>
+                      {(() => { const ch = ltp - ltp / (1 + chp / 100); return `${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chp >= 0 ? '+' : ''}${chp.toFixed(2)}%)`; })()}
+                    </span>
                   )}
                 </div>
               </div>
+
+              {/* Order type */}
+              <div className="flex items-center gap-3">
+                <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Order Type</span>
+                <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
+                  {(['LIMIT', 'MARKET', 'GTT'] as const).map(ot => (
+                    <button key={ot} type="button" onClick={() => setOrderType(ot)}
+                      className={`px-4 py-1 font-label-caps text-[10px] uppercase transition-colors ${
+                        orderType === ot ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                      }`}>{ot}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* GTT trigger price + % */}
+              {orderType === 'GTT' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Trigger Price</label>
+                    <input type="text" inputMode="decimal" value={price}
+                      onChange={e => handlePriceChange(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none focus:border-primary" />
+                    <input type="text" inputMode="decimal" value={triggerPct}
+                      onChange={e => handlePctChange(e.target.value.replace(/[^0-9.\-]/g, ''))}
+                      className="w-20 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-1.5 text-sm focus:outline-none focus:border-primary text-right" />
+                    <span className="text-[10px] text-on-surface-variant shrink-0">%LTP</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant pl-[calc(1.5rem+6rem)]">
+                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>info</span>
+                    Single · CNC · LIMIT · Expires {gttExpiryStr}
+                  </div>
+                </div>
+              )}
+
+              {/* Limit price */}
+              {orderType === 'LIMIT' && (
+                <div className="flex items-center gap-3">
+                  <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-24 shrink-0">Price</label>
+                  <input type="text" inputMode="decimal" value={price}
+                    onChange={e => setPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                    className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none focus:border-primary" />
+                </div>
+              )}
 
               {/* Accounts table */}
               <div className="border border-outline-variant overflow-hidden">
@@ -1711,7 +1900,7 @@ function JournalBuyModal({ instrument, accounts, ltp, userMap, onClose }: Journa
                     {accounts.map(acct => {
                       const qty = parseInt(qtyMap[acct] || '0', 10);
                       const margin = margins[acct];
-                      const amt = qty > 0 && effectivePrice > 0 ? qty * effectivePrice * (1 + 0.00119063431) : null;
+                      const amt = qty > 0 && effectivePrice > 0 ? qty * effectivePrice * (orderType === 'GTT' ? 1 : 1.00119063431) : null;
                       const marginInsufficient = margin != null && amt != null && amt > margin;
                       return (
                         <tr key={acct} className="hover:bg-surface-container-high transition-colors">
@@ -1858,33 +2047,50 @@ export default function TradeJournalPage() {
   async function fetchQuotes(instruments: string[]) {
     setQuotesLoading(true);
     try {
-      const eqSyms = instruments.map(i => `NSE:${i}-EQ`);
-      const r1 = await fetch('/api/fyers/quotes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols: eqSyms }),
-      });
-      if (!r1.ok) return;
-      const d1 = await r1.json() as any;
-      const result: typeof quotes = { ...(d1.data || {}) };
+      const result: typeof quotes = {};
 
-      // Retry with -BE for symbols that returned null ltp
-      const beList = instruments.filter(i => {
-        const q = result[`NSE:${i}-EQ`];
-        return !q || q.lp == null;
-      });
-      if (beList.length > 0) {
-        const r2 = await fetch('/api/fyers/quotes', {
+      // Instruments explicitly stored with -BE suffix → fetch directly as NSE:SYMBOL-BE
+      const beInstruments  = instruments.filter(i => i.endsWith('-BE'));
+      // All others → try -EQ first, fall back to -BE if ltp is null
+      const eqInstruments  = instruments.filter(i => !i.endsWith('-BE'));
+
+      if (eqInstruments.length > 0) {
+        const r1 = await fetch('/api/fyers/quotes', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbols: beList.map(i => `NSE:${i}-BE`) }),
+          body: JSON.stringify({ symbols: eqInstruments.map(i => `NSE:${i}-EQ`) }),
         });
-        if (r2.ok) {
-          const d2 = await r2.json() as any;
-          for (const i of beList) {
-            const q = d2.data?.[`NSE:${i}-BE`];
-            if (q?.lp != null) result[`NSE:${i}-EQ`] = q;
+        if (r1.ok) {
+          const d1 = await r1.json() as any;
+          Object.assign(result, d1.data || {});
+          // Retry failed EQ lookups with -BE
+          const beRetry = eqInstruments.filter(i => { const q = result[`NSE:${i}-EQ`]; return !q || q.lp == null; });
+          if (beRetry.length > 0) {
+            const r2 = await fetch('/api/fyers/quotes', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ symbols: beRetry.map(i => `NSE:${i}-BE`) }),
+            });
+            if (r2.ok) {
+              const d2 = await r2.json() as any;
+              for (const i of beRetry) {
+                const q = d2.data?.[`NSE:${i}-BE`];
+                if (q?.lp != null) result[`NSE:${i}-EQ`] = q;
+              }
+            }
           }
         }
       }
+
+      if (beInstruments.length > 0) {
+        const r3 = await fetch('/api/fyers/quotes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbols: beInstruments.map(i => `NSE:${i}`) }),
+        });
+        if (r3.ok) {
+          const d3 = await r3.json() as any;
+          Object.assign(result, d3.data || {});
+        }
+      }
+
       setQuotes(result);
     } catch { /* silent */ }
     finally { setQuotesLoading(false); }
@@ -1910,8 +2116,8 @@ export default function TradeJournalPage() {
     const totalInv = filteredTrades.reduce((s, t) => s + t.qty * t.buy_price, 0);
     return filteredTrades.map(t => {
       const isOpen     = !t.sell_date;
-      const ltp        = isOpen ? (quotes[`NSE:${t.instrument}-EQ`]?.lp  ?? null) : null;
-      const day_change = isOpen ? (quotes[`NSE:${t.instrument}-EQ`]?.chp ?? null) : null;
+      const ltp        = isOpen ? (quotes[fyersKey(t.instrument)]?.lp  ?? null) : null;
+      const day_change = isOpen ? (quotes[fyersKey(t.instrument)]?.chp ?? null) : null;
       const currPrice  = isOpen ? (ltp ?? t.buy_price) : (t.sell_price ?? t.buy_price);
       const invested   = t.qty * t.buy_price;
       const curr_value = t.qty * currPrice;
@@ -2077,7 +2283,20 @@ export default function TradeJournalPage() {
           acct.split(',').map(a => a.trim()).filter(Boolean);
         return (
           <span className="flex items-center gap-1 group/instr">
-            <span className="font-semibold text-on-surface">{row.instrument}</span>
+            {(() => {
+              const isOpenRow = row.status === 'Open' || row.status === 'Mixed';
+              const alertDown  = isOpenRow && row.pnl_pct <= -5;
+              const highlight  = status === 'all' && isOpenRow && !alertDown;
+              return (
+                <span className={`font-semibold ${
+                  alertDown  ? 'bg-tertiary/20 text-tertiary px-1.5 py-0.5 rounded-sm' :
+                  highlight  ? 'bg-secondary/15 text-secondary px-1.5 py-0.5 rounded-sm' :
+                  'text-on-surface'
+                }`}>
+                  {row.instrument}
+                </span>
+              );
+            })()}
             <span className="flex gap-0.5 opacity-0 group-hover/instr:opacity-100 transition-opacity ml-1">
               {!grouped && (
                 <>
@@ -2097,7 +2316,7 @@ export default function TradeJournalPage() {
                   */}
                 </>
               )}
-              {status === 'open' && (
+              {(status === 'open' || (status === 'all' && (row.status === 'Open' || row.status === 'Mixed'))) && (
                 <>
                   <button type="button"
                     onClick={e => { e.stopPropagation(); setOrderModal({ type: 'BUY', instrument: row.instrument, accounts: parseAccounts(row.account) }); }}
@@ -2463,8 +2682,10 @@ export default function TradeJournalPage() {
           instrument={orderModal.instrument}
           accounts={orderModal.accounts}
           ltp={quotes[`NSE:${orderModal.instrument}-EQ`]?.lp ?? null}
+          chp={quotes[`NSE:${orderModal.instrument}-EQ`]?.chp ?? null}
           userMap={activeUsers}
           onClose={() => setOrderModal(null)}
+          onToggle={() => setOrderModal(m => m ? { ...m, type: 'BUY' } : null)}
         />
       )}
       {orderModal?.type === 'BUY' && (
@@ -2472,8 +2693,10 @@ export default function TradeJournalPage() {
           instrument={orderModal.instrument}
           accounts={orderModal.accounts}
           ltp={quotes[`NSE:${orderModal.instrument}-EQ`]?.lp ?? null}
+          chp={quotes[`NSE:${orderModal.instrument}-EQ`]?.chp ?? null}
           userMap={activeUsers}
           onClose={() => setOrderModal(null)}
+          onToggle={() => setOrderModal(m => m ? { ...m, type: 'SELL' } : null)}
         />
       )}
     </div>

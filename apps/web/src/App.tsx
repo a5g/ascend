@@ -5,6 +5,7 @@ import BulkOrderPage from './components/BulkOrderPage';
 import DashboardPage from './components/DashboardPage';
 import SecuritiesPage from './components/SecuritiesPage';
 import UsersPage from './components/UsersPage';
+import KitePage from './components/KitePage';
 import FyersPage from './components/FyersPage';
 import TradeJournalPage from './components/TradeJournalPage';
 import { MfeErrorBoundary } from './components/MfeErrorBoundary';
@@ -115,6 +116,7 @@ function App() {
             { label: 'Alerts',      route: 'alerts'      },
             { label: 'Super Admin', route: 'admin'       },
             { label: 'Users',       route: 'users'       },
+            { label: 'Kite',        route: 'kite'        },
             { label: 'Fyers',       route: 'fyers'       },
             { label: 'Trade Journal', route: 'trades'    },
           ].map(({ label, route: r }) => (
@@ -185,6 +187,7 @@ function App() {
       )}
 
       {route === 'users'  && <UsersPage />}
+      {route === 'kite'   && <KitePage />}
       {route === 'fyers'  && <FyersPage />}
       {route === 'trades' && <TradeJournalPage />}
         </div>

@@ -41,6 +41,9 @@ fastify.register(securitiesRoutes);
 import ordersRoutes from './orders';
 fastify.register(ordersRoutes);
 
+import kiteRoutes from './kite';
+fastify.register(kiteRoutes);
+
 import fyersRoutes from './fyers';
 fastify.register(fyersRoutes);
 

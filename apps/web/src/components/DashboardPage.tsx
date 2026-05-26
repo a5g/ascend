@@ -55,6 +55,10 @@ const COLS: { key: SortKey; label: string; right: boolean }[] = [
   { key: 'day_change_percentage', label: 'Day Chg',   right: true  },
 ];
 
+type OrderType = 'LIMIT' | 'MARKET' | 'GTT';
+const SELL_PCT_OPTIONS = ['25%', '33%', '50%', '75%', '100%'];
+const roundTo10p = (v: number) => (Math.round(v * 10) / 10).toFixed(2);
+
 function fyersSymbol(tradingsymbol: string, _exchange: string): string {
   return tradingsymbol.includes('-BE')
     ? `NSE:${tradingsymbol}`
@@ -88,35 +92,33 @@ interface TradeModalProps {
   zerodha_user_id: string;
   name: string | null;
   ltp: number;
+  chp: number | null;
   onClose: () => void;
 }
 
-function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: TradeModalProps) {
-  const isBuy = type === 'BUY';
+function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }: TradeModalProps) {
+  const [currentType, setCurrentType] = useState<'BUY' | 'SELL'>(type);
+  const isBuy = currentType === 'BUY';
 
-  const [qty, setQty] = useState(isBuy ? '' : String(holding.quantity));
-  const [order_type, setOrderType] = useState<'LIMIT' | 'MARKET'>('LIMIT');
-  const [exchange, setExchange] = useState<'NSE' | 'BSE'>('NSE');
-  const [price, setPrice] = useState(ltp > 0 ? ltp.toFixed(2) : '');
-  const [step, setStep] = useState<'form' | 'confirm'>('form');
+  const [qty, setQty]             = useState(isBuy ? '' : String(holding.quantity));
+  const [activePct, setActivePct] = useState('100%');
+  const [customPct, setCustomPct] = useState('');
+  const [order_type, setOrderType] = useState<OrderType>('LIMIT');
+  const [exchange, setExchange]   = useState<'NSE' | 'BSE'>('NSE');
+  const [price, setPrice]         = useState(ltp > 0 ? roundTo10p(ltp) : '');
+  const [triggerPct, setTriggerPct] = useState('');
+  const [step, setStep]     = useState<'form' | 'confirm'>('form');
   const [placing, setPlacing] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [margin, setMargin] = useState<number | null | undefined>(undefined);
+  const [result, setResult]   = useState<{ ok: boolean; msg: string } | null>(null);
+  const [margin, setMargin]   = useState<number | null | undefined>(undefined);
   const qtyRef   = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isBuy) {
-      setTimeout(() => qtyRef.current?.focus(), 50);
-    } else {
-      setTimeout(() => modalRef.current?.focus(), 50);
-    }
+    if (isBuy) setTimeout(() => qtyRef.current?.focus(), 50);
+    else        setTimeout(() => modalRef.current?.focus(), 50);
   }, [isBuy]);
-
-  useEffect(() => {
-    if (step === 'confirm' || result) setTimeout(() => modalRef.current?.focus(), 50);
-  }, [step, result]);
-
+  useEffect(() => { if (step === 'confirm' || result) setTimeout(() => modalRef.current?.focus(), 50); }, [step, result]);
   useEffect(() => {
     fetch(`/api/users/${encodeURIComponent(zerodha_user_id)}/margins`)
       .then(r => r.json())
@@ -124,16 +126,47 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
       .catch(() => setMargin(null));
   }, [zerodha_user_id]);
 
-  const inrM   = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const inrQty = (v: number) => Math.floor(v).toLocaleString('en-IN');
+  const inrM    = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const inrQtyL = (v: number) => Math.floor(v).toLocaleString('en-IN');
 
-  const qtyNum   = parseInt(qty, 10);
-  const priceNum = parseFloat(price);
-  const effectivePrice = order_type === 'LIMIT' ? priceNum : ltp;
+  const gttExpiry = new Date(); gttExpiry.setFullYear(gttExpiry.getFullYear() + 2);
+  const gttExpiryStr = gttExpiry.toISOString().slice(0, 10);
+
+  function handleToggleType() {
+    const newType = currentType === 'BUY' ? 'SELL' : 'BUY';
+    setCurrentType(newType);
+    setQty(newType === 'BUY' ? '' : String(holding.quantity));
+    setActivePct('100%');
+    setCustomPct('');
+    setPrice(ltp > 0 ? roundTo10p(ltp) : '');
+    setTriggerPct('');
+    setStep('form');
+    setResult(null);
+  }
+
+  function handlePriceChange(val: string) {
+    setPrice(val);
+    if (order_type === 'GTT' && ltp > 0) {
+      const p = parseFloat(val);
+      setTriggerPct(!isNaN(p) ? ((p - ltp) / ltp * 100).toFixed(2) : '');
+    }
+  }
+
+  function handlePctChange(val: string) {
+    setTriggerPct(val);
+    if (ltp > 0) {
+      const pct = parseFloat(val);
+      if (!isNaN(pct)) setPrice(roundTo10p(ltp * (1 + pct / 100)));
+    }
+  }
+
+  const qtyNum      = parseInt(qty, 10);
+  const priceNum    = parseFloat(price);
+  const effectivePrice = order_type === 'GTT' ? priceNum : order_type === 'LIMIT' ? priceNum : ltp;
   const amountRequired = qtyNum > 0 && isFinite(effectivePrice) ? qtyNum * effectivePrice : null;
-  const txnFee         = amountRequired != null ? amountRequired * 0.00119063431 : null;
+  const txnFee         = amountRequired != null && order_type !== 'GTT' ? amountRequired * 0.00119063431 : null;
   const totalAmount    = amountRequired != null && txnFee != null ? amountRequired + txnFee : null;
-  const marginInsufficient = isBuy && margin != null && totalAmount != null && totalAmount > margin;
+  const marginInsufficient = isBuy && order_type !== 'GTT' && margin != null && totalAmount != null && totalAmount > margin;
 
   const canSubmit =
     qtyNum > 0 &&
@@ -144,32 +177,50 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
   async function placeOrder() {
     setPlacing(true);
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          zerodha_user_id,
-          exchange,
-          tradingSymbol:      holding.tradingsymbol,
-          transaction_type:   type,
-          order_type,
-          price:              priceNum,
-          qty:                qtyNum,
-          variety:            'regular',
-          product:            'CNC',
-          validity:           'DAY',
-          disclosed_quantity: 0,
-          trigger_price:      0,
-          squareoff:          0,
-          stoploss:           0,
-          trailing_stoploss:  0,
-        }),
-      });
+      let res: Response;
+      if (order_type === 'GTT') {
+        res = await fetch('/api/gtt/triggers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zerodha_user_id,
+            exchange,
+            tradingsymbol:    holding.tradingsymbol,
+            transaction_type: currentType,
+            qty:              qtyNum,
+            trigger_price:    priceNum,
+            last_price:       ltp ?? 0,
+          }),
+        });
+      } else {
+        res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zerodha_user_id,
+            exchange,
+            tradingSymbol:      holding.tradingsymbol,
+            transaction_type:   currentType,
+            order_type,
+            price:              priceNum,
+            qty:                qtyNum,
+            variety:            'regular',
+            product:            'CNC',
+            validity:           'DAY',
+            disclosed_quantity: 0,
+            trigger_price:      0,
+            squareoff:          0,
+            stoploss:           0,
+            trailing_stoploss:  0,
+          }),
+        });
+      }
       const data = await res.json() as any;
       if (!res.ok) {
         setResult({ ok: false, msg: data?.error || 'Order failed' });
       } else {
-        setResult({ ok: true, msg: data?.data?.order_id ? `Order placed: #${data.data.order_id}` : 'Order placed successfully' });
+        const id = data?.data?.order_id ?? data?.data?.trigger_id;
+        setResult({ ok: true, msg: id ? `Order placed: #${id}` : 'Order placed successfully' });
       }
     } catch {
       setResult({ ok: false, msg: 'Network error' });
@@ -178,12 +229,11 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
     }
   }
 
-  // Soft theme colours matching the holdings table badges
-  const headerCls   = isBuy ? 'bg-secondary/10 border-b border-secondary/20' : 'bg-tertiary/10 border-b border-tertiary/20';
-  const titleCls    = isBuy ? 'text-secondary' : 'text-tertiary';
-  const borderCls   = isBuy ? 'border-secondary/30' : 'border-tertiary/30';
+  const headerCls  = isBuy ? 'bg-secondary/10 border-b border-secondary/20' : 'bg-tertiary/10 border-b border-tertiary/20';
+  const titleCls   = isBuy ? 'text-secondary' : 'text-tertiary';
+  const borderCls  = isBuy ? 'border-secondary/30' : 'border-tertiary/30';
   const toggleActive = 'bg-primary text-on-primary';
-  const btnCls      = isBuy
+  const btnCls     = isBuy
     ? 'bg-secondary/20 border border-secondary/50 text-secondary hover:bg-secondary/30'
     : 'bg-tertiary/20 border border-tertiary/50 text-tertiary hover:bg-tertiary/30';
 
@@ -203,34 +253,39 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
           }
         }}
       >
-
         {/* Header */}
         <div className={`${headerCls} px-5 py-3 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
             <span className={`material-symbols-outlined text-base ${titleCls}`}>{isBuy ? 'add_shopping_cart' : 'sell'}</span>
-            <span className={`font-bold text-sm uppercase tracking-widest ${titleCls}`}>
-              {type} — {holding.tradingsymbol}
-            </span>
+            <span className={`font-bold text-sm uppercase tracking-widest ${titleCls}`}>{currentType} — {holding.tradingsymbol}</span>
           </div>
-          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {!result && (
+              <button onClick={handleToggleType}
+                className={`px-2 py-0.5 text-xs font-bold border transition-colors ${
+                  isBuy
+                    ? 'bg-tertiary/20 border-tertiary/40 text-tertiary hover:bg-tertiary/30'
+                    : 'bg-secondary/20 border-secondary/40 text-secondary hover:bg-secondary/30'
+                }`}>
+                {isBuy ? 'S' : 'B'}
+              </button>
+            )}
+            <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4">
           {result ? (
-            /* Result */
             <div className="space-y-4">
               <div className={`flex items-start gap-3 p-3 ${result.ok ? 'bg-secondary/10 text-secondary' : 'bg-tertiary/10 text-tertiary'}`}>
                 <span className="material-symbols-outlined text-base mt-0.5">{result.ok ? 'check_circle' : 'error'}</span>
                 <span className="text-sm font-data-mono">{result.msg}</span>
               </div>
-              <button onClick={onClose} className="w-full py-2 bg-surface-container-high text-on-surface font-label-caps text-xs uppercase hover:brightness-110 transition-all">
-                Close
-              </button>
+              <button onClick={onClose} className="w-full py-2 bg-surface-container-high text-on-surface font-label-caps text-xs uppercase hover:brightness-110 transition-all">Close</button>
             </div>
           ) : step === 'form' ? (
-            /* Form */
             <>
               {/* User + stock info strip */}
               <div className="bg-surface-container-high px-3 py-2 border border-outline-variant/30 flex items-center justify-between text-xs font-data-mono">
@@ -238,19 +293,27 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
                   <span className="text-primary font-bold">{zerodha_user_id}</span>
                   {name && <span className="text-on-surface-variant text-[10px] uppercase tracking-tighter">{name}</span>}
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <div className="flex bg-surface-container border border-outline-variant p-0.5">
                     {(['NSE', 'BSE'] as const).map(ex => (
                       <button key={ex} type="button" onClick={() => setExchange(ex)}
                         className={`px-2 py-0.5 font-label-caps text-[10px] uppercase transition-colors ${
                           exchange === ex ? toggleActive : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-                        }`}>
-                        {ex}
-                      </button>
+                        }`}>{ex}</button>
                     ))}
                   </div>
-                  <span className="text-on-surface-variant">LTP: <strong className={titleCls}>{ltp > 0 ? inrM(ltp) : '—'}</strong></span>
-                  <span className="text-on-surface-variant">Holding: <strong className="text-on-surface">{inrQty(holding.quantity)}</strong></span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-on-surface font-bold">{ltp > 0 ? inrM(ltp) : '—'}</span>
+                    {chp != null && ltp > 0 && (
+                      <span className={`text-[10px] font-data-mono ${chp > 0 ? 'text-secondary' : chp < 0 ? 'text-tertiary' : 'text-on-surface-variant'}`}>
+                        {(() => { const ch = ltp - ltp / (1 + chp / 100); return `${ch >= 0 ? '+' : ''}${ch.toFixed(2)} (${chp >= 0 ? '+' : ''}${chp.toFixed(2)}%)`; })()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] text-on-surface-variant uppercase font-label-caps">Holding</span>
+                    <span className="text-on-surface font-bold">{inrQtyL(holding.quantity)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -258,36 +321,80 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
               <div className="flex items-center gap-3">
                 <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Order Type</span>
                 <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
-                  {(['LIMIT', 'MARKET'] as const).map(ot => (
+                  {(['LIMIT', 'MARKET', 'GTT'] as const).map(ot => (
                     <button key={ot} type="button" onClick={() => setOrderType(ot)}
                       className={`px-4 py-1 font-label-caps text-[10px] uppercase transition-colors ${
                         order_type === ot ? toggleActive : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-                      }`}>
-                      {ot}
-                    </button>
+                      }`}>{ot}</button>
                   ))}
                 </div>
               </div>
+
+              {/* Sell Holding % — sell only */}
+              {!isBuy && (
+                <div className="flex items-center gap-3">
+                  <span className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Sell %</span>
+                  <div className="flex bg-surface-container-lowest border border-outline-variant p-0.5">
+                    {SELL_PCT_OPTIONS.map(pct => (
+                      <button key={pct} type="button"
+                        onClick={() => {
+                          setActivePct(pct); setCustomPct('');
+                          setQty(String(Math.floor(holding.quantity * parseFloat(pct) / 100)));
+                        }}
+                        className={`px-3 py-1 text-[10px] font-bold font-data-mono transition-colors ${
+                          activePct === pct && customPct === '' ? 'bg-tertiary text-on-tertiary' : 'hover:bg-tertiary/20 text-on-surface'
+                        }`}>{pct}</button>
+                    ))}
+                    <input type="text" value={customPct}
+                      onChange={e => {
+                        const v = e.target.value.replace(/[^0-9.]/g, '');
+                        setCustomPct(v);
+                        const p = parseFloat(v);
+                        if (!isNaN(p) && p > 0) setQty(String(Math.floor(holding.quantity * Math.min(p, 100) / 100)));
+                      }}
+                      placeholder="Custom"
+                      className="w-16 bg-transparent border-l border-outline-variant text-[10px] text-center font-data-mono text-on-surface focus:outline-none py-1 px-1" />
+                  </div>
+                </div>
+              )}
 
               {/* Qty */}
               <div className="flex items-start gap-3">
                 <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0 pt-2">Qty</label>
                 <div className="flex-1 space-y-1">
                   <input ref={qtyRef} type="text" inputMode="numeric" value={qty}
-                    onChange={e => setQty(e.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={e => { setQty(e.target.value.replace(/[^0-9]/g, '')); if (!isBuy) { setActivePct(''); setCustomPct(''); } }}
                     placeholder="Enter quantity"
                     className={`w-full bg-surface-container-lowest border text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none ${
-                      !isBuy && qtyNum > holding.quantity
-                        ? 'border-tertiary/60 focus:border-tertiary'
-                        : 'border-outline-variant focus:border-primary'
+                      !isBuy && qtyNum > holding.quantity ? 'border-tertiary/60 focus:border-tertiary' : 'border-outline-variant focus:border-primary'
                     }`} />
                   {!isBuy && qtyNum > holding.quantity && (
-                    <p className={`text-[10px] font-label-caps text-tertiary`}>Exceeds holding ({inrQty(holding.quantity)})</p>
+                    <p className="text-[10px] font-label-caps text-tertiary">Exceeds holding ({inrQtyL(holding.quantity)})</p>
                   )}
                 </div>
               </div>
 
-              {/* Price */}
+              {/* GTT Trigger Price + % */}
+              {order_type === 'GTT' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Trigger Price</label>
+                    <input type="text" inputMode="decimal" value={price}
+                      onChange={e => handlePriceChange(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="w-28 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none focus:border-primary" />
+                    <input type="text" inputMode="decimal" value={triggerPct}
+                      onChange={e => handlePctChange(e.target.value.replace(/[^0-9.\-]/g, ''))}
+                      className="w-20 bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-1.5 text-sm focus:outline-none focus:border-primary text-right" />
+                    <span className="text-[10px] text-on-surface-variant shrink-0">%LTP</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-on-surface-variant pl-[calc(1.5rem+5rem)]">
+                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>info</span>
+                    Single · CNC · LIMIT · Expires {gttExpiryStr}
+                  </div>
+                </div>
+              )}
+
+              {/* Limit Price */}
               {order_type === 'LIMIT' && (
                 <div className="flex items-center gap-3">
                   <label className="font-label-caps text-[10px] text-on-surface-variant uppercase w-20 shrink-0">Price</label>
@@ -297,45 +404,34 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
                 </div>
               )}
 
-              {/* Amount + Fee + Total */}
-              {amountRequired != null && (
+              {/* Amount summary — not shown for GTT */}
+              {amountRequired != null && order_type !== 'GTT' && (
                 <div className="bg-surface-container-high border border-outline-variant/30 px-3 py-2 space-y-1.5 text-xs font-data-mono">
                   {isBuy ? (
                     <>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Amount Required</span>
-                        <span className={`font-bold ${titleCls}`}>₹{inrM(amountRequired)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Transaction Fee</span>
-                        <span className="text-on-surface-variant">₹{inrM(txnFee!)}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-outline-variant/40 pt-1.5">
-                        <span className="text-on-surface font-bold">Total Amount</span>
-                        <span className={`font-bold ${titleCls}`}>₹{inrM(totalAmount!)}</span>
-                      </div>
+                      <div className="flex justify-between"><span className="text-on-surface-variant">Amount Required</span><span className={`font-bold ${titleCls}`}>₹{inrM(amountRequired)}</span></div>
+                      <div className="flex justify-between"><span className="text-on-surface-variant">Transaction Fee</span><span className="text-on-surface-variant">₹{inrM(txnFee!)}</span></div>
+                      <div className="flex justify-between border-t border-outline-variant/40 pt-1.5"><span className="text-on-surface font-bold">Total Amount</span><span className={`font-bold ${titleCls}`}>₹{inrM(totalAmount!)}</span></div>
                       <div className="flex justify-between border-t border-outline-variant/40 pt-1.5">
                         <span className="text-on-surface-variant">Available Margin</span>
                         <span className={margin === undefined ? 'text-on-surface-variant' : marginInsufficient ? 'text-tertiary font-bold' : 'text-secondary'}>
                           {margin === undefined ? '…' : margin != null ? `₹${inrM(margin)}` : '—'}
                         </span>
                       </div>
-                      {marginInsufficient && (
-                        <p className="text-tertiary text-[10px] font-label-caps">Insufficient margin</p>
-                      )}
+                      {marginInsufficient && <p className="text-tertiary text-[10px] font-label-caps">Insufficient margin</p>}
                     </>
                   ) : (
                     <>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Transaction Fee</span>
-                        <span className="text-on-surface-variant">₹{inrM(txnFee!)}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-outline-variant/40 pt-1.5">
-                        <span className="text-on-surface font-bold">Get Amount</span>
-                        <span className={`font-bold ${titleCls}`}>₹{inrM(amountRequired - txnFee!)}</span>
-                      </div>
+                      <div className="flex justify-between"><span className="text-on-surface-variant">Transaction Fee</span><span className="text-on-surface-variant">₹{inrM(txnFee!)}</span></div>
+                      <div className="flex justify-between border-t border-outline-variant/40 pt-1.5"><span className="text-on-surface font-bold">Get Amount</span><span className={`font-bold ${titleCls}`}>₹{inrM(amountRequired - txnFee!)}</span></div>
                     </>
                   )}
+                </div>
+              )}
+              {amountRequired != null && order_type === 'GTT' && (
+                <div className="bg-surface-container-high border border-outline-variant/30 px-3 py-2 text-xs font-data-mono flex justify-between">
+                  <span className="text-on-surface-variant">Est. Value at Trigger</span>
+                  <span className={`font-bold ${titleCls}`}>₹{inrM(amountRequired)}</span>
                 </div>
               )}
 
@@ -345,7 +441,6 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
               </button>
             </>
           ) : (
-            /* Confirm */
             <>
               <div className="bg-surface-container-high border border-outline-variant p-4 space-y-2 text-sm font-data-mono">
                 <div className="flex justify-between">
@@ -357,36 +452,34 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
                 </div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Symbol</span><span className={`font-bold ${titleCls}`}>{holding.tradingsymbol}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Exchange</span><span className="text-on-surface">{exchange}</span></div>
-                <div className="flex justify-between"><span className="text-on-surface-variant">Action</span><span className={`font-bold ${titleCls}`}>{type}</span></div>
+                <div className="flex justify-between"><span className="text-on-surface-variant">Action</span><span className={`font-bold ${titleCls}`}>{currentType}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Qty</span><span className="text-on-surface">{qtyNum}</span></div>
-                <div className="flex justify-between"><span className="text-on-surface-variant">Order Type</span><span className="text-on-surface">{order_type}</span></div>
-                {order_type === 'LIMIT' && (
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Price</span><span className="text-on-surface">₹{inrM(priceNum)}</span></div>
-                )}
-                <div className="flex justify-between border-t border-outline-variant/40 pt-2">
-                  <span className="text-on-surface-variant">Est. Value</span>
-                  <span className={`font-bold ${titleCls}`}>₹{inrM(qtyNum * effectivePrice)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Transaction Fee</span>
-                  <span className="text-on-surface-variant">₹{txnFee != null ? inrM(txnFee) : '—'}</span>
-                </div>
-                {isBuy ? (
-                  <div className="flex justify-between">
-                    <span className="text-on-surface font-bold">Total Amount</span>
-                    <span className={`font-bold ${titleCls}`}>₹{totalAmount != null ? inrM(totalAmount) : '—'}</span>
-                  </div>
+                {order_type === 'GTT' ? (
+                  <>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Order Type</span><span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary font-bold">GTT · SINGLE · CNC</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Trigger Price</span><span className="text-on-surface">₹{inrM(priceNum)}</span></div>
+                    {triggerPct && <div className="flex justify-between"><span className="text-on-surface-variant">% from LTP</span><span className="text-on-surface">{triggerPct}%</span></div>}
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Expires</span><span className="text-on-surface">{gttExpiryStr}</span></div>
+                    <div className="flex justify-between border-t border-outline-variant/40 pt-2">
+                      <span className="text-on-surface-variant">Est. Value at Trigger</span>
+                      <span className={`font-bold ${titleCls}`}>₹{inrM(qtyNum * priceNum)}</span>
+                    </div>
+                  </>
                 ) : (
-                  <div className="flex justify-between">
-                    <span className="text-on-surface font-bold">Get Amount</span>
-                    <span className={`font-bold ${titleCls}`}>₹{txnFee != null ? inrM(qtyNum * effectivePrice - txnFee) : '—'}</span>
-                  </div>
-                )}
-                {isBuy && margin != null && (
-                  <div className="flex justify-between border-t border-outline-variant/40 pt-2">
-                    <span className="text-on-surface-variant">Available Margin</span>
-                    <span className="text-on-surface">₹{inrM(margin)}</span>
-                  </div>
+                  <>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Order Type</span><span className="text-on-surface">{order_type}</span></div>
+                    {order_type === 'LIMIT' && <div className="flex justify-between"><span className="text-on-surface-variant">Price</span><span className="text-on-surface">₹{inrM(priceNum)}</span></div>}
+                    <div className="flex justify-between border-t border-outline-variant/40 pt-2"><span className="text-on-surface-variant">Est. Value</span><span className={`font-bold ${titleCls}`}>₹{inrM(qtyNum * effectivePrice)}</span></div>
+                    <div className="flex justify-between"><span className="text-on-surface-variant">Transaction Fee</span><span className="text-on-surface-variant">₹{txnFee != null ? inrM(txnFee) : '—'}</span></div>
+                    {isBuy ? (
+                      <div className="flex justify-between"><span className="text-on-surface font-bold">Total Amount</span><span className={`font-bold ${titleCls}`}>₹{totalAmount != null ? inrM(totalAmount) : '—'}</span></div>
+                    ) : (
+                      <div className="flex justify-between"><span className="text-on-surface font-bold">Get Amount</span><span className={`font-bold ${titleCls}`}>₹{txnFee != null ? inrM(qtyNum * effectivePrice - txnFee) : '—'}</span></div>
+                    )}
+                    {isBuy && margin != null && (
+                      <div className="flex justify-between border-t border-outline-variant/40 pt-2"><span className="text-on-surface-variant">Available Margin</span><span className="text-on-surface">₹{inrM(margin)}</span></div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -397,7 +490,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, onClose }: Trad
                 </button>
                 <button onClick={placeOrder} disabled={placing}
                   className={`flex-1 py-2 font-label-caps text-xs uppercase font-bold transition-all disabled:opacity-60 ${btnCls}`}>
-                  {placing ? 'Placing…' : `Confirm ${type}`}
+                  {placing ? 'Placing…' : order_type === 'GTT' ? `Confirm GTT ${currentType}` : `Confirm ${currentType}`}
                 </button>
               </div>
             </>
@@ -455,7 +548,7 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery]     = useState('');
   const [filterText, setFilterText]       = useState('');
   const [focusedUserIndex, setFocusedUserIndex] = useState(-1);
-  const [tradeModal, setTradeModal] = useState<{ holding: KiteHolding; type: 'BUY' | 'SELL'; ltp: number } | null>(null);
+  const [tradeModal, setTradeModal] = useState<{ holding: KiteHolding; type: 'BUY' | 'SELL'; ltp: number; chp: number | null } | null>(null);
   const [headerMargin, setHeaderMargin] = useState<number | null | undefined>(undefined);
   const [fyersQuotes, setFyersQuotes] = useState<Record<string, FyersQuote>>({});
   const dropdownRef  = useRef<HTMLDivElement>(null);
@@ -906,18 +999,18 @@ export default function DashboardPage() {
                         <tr key={h.tradingsymbol} className="group hover:bg-surface-variant transition-colors">
                           <td className="p-3 text-on-surface">
                             <div className="flex items-center">
-                              <span>{h.tradingsymbol}</span>
+                              <span className={pct <= -10 ? 'bg-tertiary/20 text-tertiary px-1.5 py-0.5 rounded-sm font-semibold' : ''}>{h.tradingsymbol}</span>
                               {h.exchange === 'BSE' && (
                                 <span className="ml-1.5 font-label-caps text-[8px] px-1 py-0.5 bg-surface-container-high border border-outline-variant text-on-surface-variant">BSE</span>
                               )}
                               <div className="hidden group-hover:flex items-center" style={{ marginLeft: '10px', gap: '4px' }}>
                                 <button
-                                  onClick={() => setTradeModal({ holding: h, type: 'BUY', ltp: ltpVal })}
+                                  onClick={() => setTradeModal({ holding: h, type: 'BUY', ltp: ltpVal, chp })}
                                   title="Buy more"
                                   className="px-1.5 py-0.5 text-xs font-bold bg-secondary/20 text-secondary hover:bg-secondary/30 transition-colors"
                                 >B</button>
                                 <button
-                                  onClick={() => setTradeModal({ holding: h, type: 'SELL', ltp: ltpVal })}
+                                  onClick={() => setTradeModal({ holding: h, type: 'SELL', ltp: ltpVal, chp })}
                                   title="Sell"
                                   className="px-1.5 py-0.5 text-xs font-bold bg-tertiary/20 text-tertiary hover:bg-tertiary/30 transition-colors"
                                 >S</button>
@@ -995,6 +1088,7 @@ export default function DashboardPage() {
           zerodha_user_id={selectedKiteId}
           name={activeUsers.find(u => u.zerodha_user_id === selectedKiteId)?.name ?? null}
           ltp={tradeModal.ltp}
+          chp={tradeModal.chp}
           onClose={() => setTradeModal(null)}
         />
       )}

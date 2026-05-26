@@ -185,13 +185,14 @@ export default async function tradeJournalRoutes(fastify: FastifyInstance) {
     const { id } = request.params as any;
     const body = request.body as any;
 
-    const allowed = ['method', 'account', 'qty', 'buy_price', 'sell_price', 'stop_loss', 'buy_date', 'sell_date'];
+    const allowed = ['instrument', 'method', 'account', 'qty', 'buy_price', 'sell_price', 'stop_loss', 'buy_date', 'sell_date'];
     const updates: Record<string, any> = {};
     for (const key of allowed) {
       if (key in body) {
         updates[key] = body[key] === '' ? null : body[key];
       }
     }
+    if (updates.instrument) updates.instrument = String(updates.instrument).toUpperCase().trim();
 
     const [count] = await TradeJournal.update(updates, { where: { id } });
     if (!count) return reply.status(404).send({ error: 'Trade not found' });
