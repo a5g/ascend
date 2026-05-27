@@ -22,6 +22,7 @@ export interface EquityTrade {
   exit_date: string;
   pnl: number;
   isOpen?: boolean;
+  positionSize?: number;  // buy_price × qty
 }
 
 interface EquityPoint {

@@ -232,6 +232,191 @@ function AddSecurityModal({ onClose, onSuccess }: AddModalProps) {
   );
 }
 
+// ── Edit Security Modal ───────────────────────────────────────────────────────
+
+interface EditModalProps {
+  security:  Security;
+  onClose:   () => void;
+  onSuccess: (updated: Security) => void;
+}
+
+function EditSecurityModal({ security, onClose, onSuccess }: EditModalProps) {
+  const [form, setForm]         = useState({
+    symbol:          security.symbol,
+    name_of_company: security.name_of_company,
+    series:          security.series,
+    isin_number:     security.isin_number,
+    date_of_listing: security.date_of_listing ?? '',
+    paid_up_value:   security.paid_up_value != null ? String(security.paid_up_value) : '',
+    market_lot:      security.market_lot     != null ? String(security.market_lot)    : '',
+    face_value:      security.face_value     != null ? String(security.face_value)    : '',
+  });
+  const [exchange, setExchange] = useState<'NSE' | 'BSE'>(
+    (security.exchange === 'BSE' ? 'BSE' : 'NSE') as 'NSE' | 'BSE'
+  );
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  const canSave = ['symbol', 'name_of_company', 'series', 'isin_number'].every(
+    k => form[k as keyof typeof form]?.trim()
+  );
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const handleSave = async () => {
+    if (!canSave || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/securities/${security.id}`, {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol:          form.symbol.trim().toUpperCase(),
+          name_of_company: form.name_of_company.trim(),
+          series:          form.series.trim().toUpperCase(),
+          isin_number:     form.isin_number.trim().toUpperCase(),
+          exchange,
+          date_of_listing: form.date_of_listing || null,
+          paid_up_value:   form.paid_up_value ? parseInt(form.paid_up_value, 10) : null,
+          market_lot:      form.market_lot     ? parseInt(form.market_lot, 10)   : null,
+          face_value:      form.face_value     ? parseInt(form.face_value, 10)   : null,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error ?? 'Failed to update security');
+        return;
+      }
+
+      const updated: Security = await res.json();
+      onSuccess(updated);
+      onClose();
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (
+    label: string,
+    key: keyof typeof form,
+    opts?: { type?: string; placeholder?: string; mandatory?: boolean; wide?: boolean; step?: string }
+  ) => (
+    <div className={`flex flex-col gap-1.5 ${opts?.wide ? 'col-span-2' : ''}`}>
+      <label className="text-xs font-medium text-on-surface-variant uppercase tracking-wider">
+        {label}{opts?.mandatory && <span className="text-tertiary ml-0.5">*</span>}
+      </label>
+      <input
+        type={opts?.type ?? 'text'}
+        placeholder={opts?.placeholder}
+        step={opts?.step}
+        value={form[key]}
+        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+        style={opts?.type === 'date' ? { colorScheme: 'dark' } : undefined}
+        className="bg-surface-container border border-outline-variant rounded-sm px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary transition-colors"
+      />
+    </div>
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-lg mx-4 bg-surface-container-high border border-outline-variant rounded-sm shadow-2xl flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px' }}>edit</span>
+            <h2 className="text-base font-bold text-on-surface">Edit Security</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-on-surface-variant hover:text-on-surface transition-colors rounded-sm p-0.5"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+          </button>
+        </div>
+
+        {/* Form body */}
+        <div className="px-5 py-5 grid grid-cols-2 gap-4">
+          {field('Symbol',          'symbol',          { placeholder: 'RELIANCE',           mandatory: true  })}
+          {field('Series',          'series',          { placeholder: 'EQ',                 mandatory: true  })}
+
+          {/* Exchange toggle */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Exchange</label>
+            <div className="flex h-[38px] bg-surface-container border border-outline-variant rounded-sm overflow-hidden self-start">
+              {(['NSE', 'BSE'] as const).map(ex => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => setExchange(ex)}
+                  className={`px-5 text-sm font-semibold transition-colors ${
+                    exchange === ex
+                      ? 'bg-primary text-on-primary'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >{ex}</button>
+              ))}
+            </div>
+          </div>
+          {field('Name of Company', 'name_of_company', { placeholder: 'Reliance Industries Ltd', mandatory: true, wide: true })}
+          {field('ISIN Number',     'isin_number',     { placeholder: 'INE002A01018',       mandatory: true, wide: true })}
+          {field('Date of Listing', 'date_of_listing', { type: 'date' })}
+          {field('Paid Up Value',   'paid_up_value',   { type: 'number', placeholder: '10', step: '1' })}
+          {field('Market Lot',      'market_lot',      { type: 'number', placeholder: '1',  step: '1' })}
+          {field('Face Value',      'face_value',      { type: 'number', placeholder: '10', step: '1' })}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mx-5 mb-3 flex items-center gap-2 px-3 py-2.5 rounded-sm text-sm"
+            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: '16px' }}>error</span>
+            {error}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-4 border-t border-outline-variant">
+          <p className="text-xs text-on-surface-variant"><span className="text-tertiary">*</span> Required fields</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-semibold text-on-surface-variant bg-surface-container border border-outline-variant rounded-sm hover:border-outline hover:text-on-surface transition-colors"
+            >Cancel</button>
+            <button
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className={`flex items-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-sm transition-all
+                ${canSave && !saving
+                  ? 'bg-primary text-on-primary hover:opacity-90 cursor-pointer'
+                  : 'bg-surface-container text-on-surface-variant/40 border border-outline-variant cursor-not-allowed'
+                }`}
+            >
+              {saving ? (
+                <><span className="material-symbols-outlined animate-spin" style={{ fontSize: '16px' }}>progress_activity</span>Saving…</>
+              ) : (
+                <><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>save</span>Save Changes</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Delete Confirm Modal ──────────────────────────────────────────────────────
 
 interface DeleteModalProps {
@@ -343,6 +528,7 @@ export default function SecuritiesPage() {
   const [sortDir, setSortDir]       = useState<SortDir>('asc');
   const [showModal, setShowModal]         = useState(false);
   const [deleteTarget, setDeleteTarget]   = useState<Security | null>(null);
+  const [editTarget, setEditTarget]       = useState<Security | null>(null);
   const [toast, setToast]                 = useState<{ msg: string; ok: boolean } | null>(null);
   const toastTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -485,6 +671,11 @@ export default function SecuritiesPage() {
     showToast('Security deleted successfully', true);
   };
 
+  const handleEdited = (updated: Security) => {
+    setSecurities(prev => prev.map(s => s.id === updated.id ? updated : s));
+    showToast('Security updated successfully', true);
+  };
+
   return (
     <div className="p-6 min-h-full overflow-y-auto bg-background">
       <div className="max-w-[1600px] mx-auto space-y-6">
@@ -584,7 +775,6 @@ export default function SecuritiesPage() {
                       </span>
                     </th>
                   ))}
-                  <th className="p-3 text-sm font-bold uppercase tracking-wider text-on-surface-variant text-center w-16"></th>
                 </tr>
               </thead>
               <tbody>
@@ -596,12 +786,11 @@ export default function SecuritiesPage() {
                           <div className="h-3 bg-surface-container-high rounded animate-pulse" style={{ width: j === 0 || j === 1 ? '70%' : '50%' }} />
                         </td>
                       ))}
-                      <td className="p-3"><div className="h-3 w-6 bg-surface-container-high rounded animate-pulse mx-auto" /></td>
                     </tr>
                   ))
                 ) : sorted.length === 0 ? (
                   <tr>
-                    <td colSpan={COLS.length + 1} className="p-10 text-center text-on-surface-variant text-sm">
+                    <td colSpan={COLS.length} className="p-10 text-center text-on-surface-variant text-sm">
                       {search ? `No securities matching "${search}"` : 'No securities found'}
                     </td>
                   </tr>
@@ -609,7 +798,28 @@ export default function SecuritiesPage() {
                   sorted.map(s => (
                     <tr key={s.id} className="border-b border-outline-variant/30 hover:bg-surface-container-high/50 transition-colors group">
                       <td className="p-3 text-sm font-mono text-on-surface whitespace-nowrap">{s.symbol}</td>
-                      <td className="p-3 text-sm text-on-surface">{s.name_of_company}</td>
+                      <td className="p-3 text-sm text-on-surface">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <span className="truncate">{s.name_of_company}</span>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => setEditTarget(s)}
+                              title={`Edit ${s.symbol}`}
+                              className="p-1 rounded-sm text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>edit</span>
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(s)}
+                              title={`Delete ${s.symbol}`}
+                              className="p-1 rounded-sm hover:bg-red-500/10 transition-colors"
+                              style={{ color: '#f87171' }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="p-3 text-sm text-on-surface-variant">{s.series}</td>
                       <td className="p-3 text-sm">
                         <span className="px-2 py-0.5 text-xs font-semibold rounded-sm bg-surface-container-high border border-outline-variant text-on-surface-variant">
@@ -621,16 +831,6 @@ export default function SecuritiesPage() {
                       <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.market_lot ?? '—'}</td>
                       <td className="p-3 text-sm font-mono text-on-surface-variant whitespace-nowrap">{s.isin_number}</td>
                       <td className="p-3 text-sm text-on-surface tabular-nums text-right">{s.face_value != null ? s.face_value.toLocaleString('en-IN') : '—'}</td>
-                      <td className="p-3 text-center">
-                        <button
-                          onClick={() => setDeleteTarget(s)}
-                          title={`Delete ${s.symbol}`}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-sm hover:bg-red-500/10"
-                          style={{ color: '#f87171' }}
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                        </button>
-                      </td>
                     </tr>
                   ))
                 )}
@@ -684,6 +884,15 @@ export default function SecuritiesPage() {
         <AddSecurityModal
           onClose={() => setShowModal(false)}
           onSuccess={handleAddSuccess}
+        />
+      )}
+
+      {/* Edit modal */}
+      {editTarget && (
+        <EditSecurityModal
+          security={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSuccess={handleEdited}
         />
       )}
 

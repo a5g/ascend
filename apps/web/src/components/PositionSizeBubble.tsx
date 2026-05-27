@@ -54,11 +54,12 @@ const fmt = (n: number): string => {
   return '₹' + Math.round(abs).toLocaleString('en-IN');
 };
 
-function estimatePositionSize(trade: EquityTrade): number {
+function getPositionSize(trade: EquityTrade): number {
+  if (trade.positionSize && trade.positionSize > 0) return trade.positionSize;
+  // Fallback estimate: assume ~10% avg return, so position ≈ |pnl| × 10
   const abs = Math.abs(trade.pnl);
   if (abs === 0) return 10000;
-  const seed = (trade.stock?.charCodeAt(0) ?? 65) % 10;
-  return Math.round(abs * (7 + seed * 0.5));
+  return Math.round(abs * 10);
 }
 
 function filterByPeriod(trades: EquityTrade[], period: PeriodKey): EquityTrade[] {
@@ -76,10 +77,10 @@ interface BubblePoint {
   returnPct: number;
 }
 
-function buildBubblePoint(trade: EquityTrade, initialCapital: number): BubblePoint {
-  const posSize   = estimatePositionSize(trade);
-  const sizePct   = (posSize / initialCapital) * 100;
-  const returnPct = (trade.pnl / posSize) * 100;
+function buildBubblePoint(trade: EquityTrade, capital: number): BubblePoint {
+  const posSize   = getPositionSize(trade);
+  const sizePct   = capital > 0 ? (posSize / capital) * 100 : 0;
+  const returnPct = posSize > 0 ? (trade.pnl / posSize) * 100 : 0;
   return {
     x: parseFloat(sizePct.toFixed(2)),
     y: parseFloat(returnPct.toFixed(2)),
@@ -306,9 +307,16 @@ export default function PositionSizeBubble({ trades, initialCapital = 500000 }: 
     );
   }, [filteredByPeriod, groupBy, selectedGroup]);
 
+  // If user hasn't set initial capital, use max single position as proxy for 100%
+  const effectiveCapital = useMemo(() => {
+    if (initialCapital > 0) return initialCapital;
+    const maxPos = Math.max(...activeTrades.map(t => getPositionSize(t)), 1);
+    return maxPos * 5; // treat largest position as ~20% of portfolio
+  }, [activeTrades, initialCapital]);
+
   const allPoints = useMemo(
-    () => activeTrades.map(t => buildBubblePoint(t, initialCapital)),
-    [activeTrades, initialCapital],
+    () => activeTrades.map(t => buildBubblePoint(t, effectiveCapital)),
+    [activeTrades, effectiveCapital],
   );
 
   const qStats = useMemo(() => quadrantStats(allPoints), [allPoints]);
@@ -531,7 +539,10 @@ export default function PositionSizeBubble({ trades, initialCapital = 500000 }: 
 
         {/* Note */}
         <p className="text-[11px] text-on-surface-variant bg-surface-container-high border border-outline-variant px-3 py-2 m-0">
-          Position size is estimated from P&amp;L magnitude. For precise sizing, ensure your DB stores capital deployed per trade (entry price × quantity).
+          {initialCapital <= 0
+            ? 'Initial capital not set — position size % is estimated. Set your starting capital in the Equity Curve card for accurate sizing.'
+            : 'Position size is calculated from entry price × quantity.'
+          }
         </p>
       </div>
     </div>

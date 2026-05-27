@@ -9,6 +9,13 @@ import WinRateChart from './WinRateChart';
 import ReturnDistribution from './ReturnDistribution';
 import DrawdownChart from './DrawdownChart';
 import PositionSizeBubble from './PositionSizeBubble';
+import ReturnsHeatmap from './ReturnsHeatmap';
+import HoldingPeriodChart from './HoldingPeriodChart';
+import MonthlyPnL from './MonthlyPnL';
+import EntryMonthAnalysis from './EntryMonthAnalysis';
+import TradeOverlapTimeline from './TradeOverlapTimeline';
+import OpenPositionsPanel from './OpenPositionsPanel';
+import type { OpenPosition } from './OpenPositionsPanel';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -2147,7 +2154,8 @@ export default function TradeJournalPage() {
           stock:      t.instrument,
           entry_date: t.buy_date  ?? '',
           exit_date:  t.sell_date ?? today,
-          pnl:        (effectivePrice - t.buy_price) * t.qty,
+          pnl:          (effectivePrice - t.buy_price) * t.qty,
+          positionSize: t.buy_price * t.qty,
           isOpen,
         };
       });
@@ -2165,10 +2173,29 @@ export default function TradeJournalPage() {
       stock,
       entry_date: rows.reduce((m, r) => r.entry_date < m ? r.entry_date : m, rows[0].entry_date),
       exit_date:  rows.reduce((m, r) => r.exit_date  > m ? r.exit_date  : m, rows[0].exit_date),
-      pnl:        Math.round(rows.reduce((s, r) => s + r.pnl, 0)),
-      isOpen:     rows.some(r => r.isOpen),
+      pnl:          Math.round(rows.reduce((s, r) => s + r.pnl, 0)),
+      positionSize: Math.round(rows.reduce((s, r) => s + (r.positionSize ?? 0), 0)),
+      isOpen:       rows.some(r => r.isOpen),
     }));
   }, [filteredTrades, quotes, grouped]);
+
+  const openPositions = useMemo((): OpenPosition[] => {
+    return filteredTrades
+      .filter(t => !t.sell_date)
+      .map(t => {
+        const ltp = quotes[fyersKey(t.instrument)]?.lp ?? null;
+        return {
+          id:            t.id,
+          stock:         t.instrument,
+          entry_date:    t.buy_date ?? '',
+          entry_price:   t.buy_price,
+          current_price: ltp ?? t.buy_price,
+          target_price:  t.sell_price ?? t.buy_price * 1.15,
+          stop_loss:     t.stop_loss  ?? t.buy_price * 0.90,
+          quantity:      t.qty,
+        };
+      });
+  }, [filteredTrades, quotes]);
 
   // ── Compute derived values
   const computedRows = useMemo((): DisplayRow[] => {
@@ -2719,21 +2746,23 @@ export default function TradeJournalPage() {
                 <div className="space-y-4">
                   <DrawdownChart trades={chartTrades} initialCapital={initialCapital} />
                   <PositionSizeBubble trades={chartTrades} initialCapital={initialCapital} />
+                  <ReturnsHeatmap trades={chartTrades} />
                 </div>
               )}
 
               {/* Time tab */}
               {analyticsTab === 'time' && (
-                <div className="flex items-center justify-center py-20 text-sm text-on-surface-variant">
-                  Time analysis charts coming soon.
+                <div className="space-y-4">
+                  <MonthlyPnL trades={chartTrades} />
+                  <EntryMonthAnalysis trades={chartTrades} />
+                  <TradeOverlapTimeline trades={chartTrades} initialCapital={initialCapital} />
+                  <HoldingPeriodChart trades={chartTrades} />
                 </div>
               )}
 
               {/* Open Positions tab */}
               {analyticsTab === 'open' && (
-                <div className="flex items-center justify-center py-20 text-sm text-on-surface-variant">
-                  Open positions analysis coming soon.
-                </div>
+                <OpenPositionsPanel positions={openPositions} initialCapital={initialCapital} />
               )}
 
             </div>
