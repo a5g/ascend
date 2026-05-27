@@ -2,6 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import AppSelect from './AppSelect';
 import SecurityDropdown from './SecurityDropdown';
 import type { SecurityOption } from './SecurityDropdown';
+import EquityCurve from './EquityCurve';
+import type { EquityTrade } from './EquityCurve';
+import StockPnL from './StockPnL';
+import WinRateChart from './WinRateChart';
+import ReturnDistribution from './ReturnDistribution';
+import DrawdownChart from './DrawdownChart';
+import PositionSizeBubble from './PositionSizeBubble';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1949,12 +1956,23 @@ function JournalBuyModal({ instrument, accounts, ltp, chp, userMap, onClose, onT
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TradeJournalPage() {
+  // ── View toggle
+  const [view, setView] = useState<'journal' | 'analytics'>('journal');
+  const [analyticsTab, setAnalyticsTab] = useState<'performance' | 'risk' | 'time' | 'open'>('performance');
+  const [initialCapital, setInitialCapital] = useState<number>(() => {
+    const saved = localStorage.getItem('tj_initial_capital');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
   // ── Filter state
   const [status, setStatus] = useState<'all' | 'open' | 'closed'>('open');
   const [selectedMethods, setSelectedMethods] = useState<Set<string>>(new Set(['SWING']));
   const [selectedAccounts, setSelectedAccounts] = useState<Set<string>>(new Set());
   const [instrumentFilter, setInstrumentFilter] = useState('');
   const [grouped, setGrouped] = useState(true);
+  const [dateFrom,    setDateFrom]    = useState('');
+  const [dateTo,      setDateTo]      = useState('');
+  const [dateField,   setDateField]   = useState<'buy' | 'sell'>('buy');
   const [sortCol, setSortCol] = useState('pnl_pct');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [pageSize, setPageSize] = useState(25);
@@ -2107,9 +2125,50 @@ export default function TradeJournalPage() {
         const q = instrumentFilter.trim().toLowerCase();
         if (!t.instrument.toLowerCase().includes(q)) return false;
       }
+      const dateVal = dateField === 'buy' ? t.buy_date : t.sell_date;
+      if (dateFrom && (!dateVal || dateVal < dateFrom)) return false;
+      if (dateTo   && (!dateVal || dateVal > dateTo))   return false;
       return true;
     });
-  }, [allTrades, status, selectedMethods, selectedAccounts, instrumentFilter]);
+  }, [allTrades, status, selectedMethods, selectedAccounts, instrumentFilter, dateFrom, dateTo, dateField]);
+
+  // ── All filtered trades mapped for analytics — open positions use LTP + today
+  const chartTrades = useMemo((): EquityTrade[] => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const raw: EquityTrade[] = filteredTrades
+      .filter(t => t.buy_date)
+      .map(t => {
+        const isOpen         = !t.sell_date;
+        const ltp            = isOpen ? (quotes[fyersKey(t.instrument)]?.lp ?? null) : null;
+        const effectivePrice = isOpen ? (ltp ?? t.buy_price) : (t.sell_price ?? t.buy_price);
+        return {
+          id:         t.id,
+          stock:      t.instrument,
+          entry_date: t.buy_date  ?? '',
+          exit_date:  t.sell_date ?? today,
+          pnl:        (effectivePrice - t.buy_price) * t.qty,
+          isOpen,
+        };
+      });
+
+    if (!grouped) return raw;
+
+    // Aggregate by instrument: sum PnL, earliest entry, latest exit
+    const groups = new Map<string, EquityTrade[]>();
+    for (const t of raw) {
+      if (!groups.has(t.stock)) groups.set(t.stock, []);
+      groups.get(t.stock)!.push(t);
+    }
+    return Array.from(groups.entries()).map(([stock, rows]) => ({
+      id:         rows[0].id,
+      stock,
+      entry_date: rows.reduce((m, r) => r.entry_date < m ? r.entry_date : m, rows[0].entry_date),
+      exit_date:  rows.reduce((m, r) => r.exit_date  > m ? r.exit_date  : m, rows[0].exit_date),
+      pnl:        Math.round(rows.reduce((s, r) => s + r.pnl, 0)),
+      isOpen:     rows.some(r => r.isOpen),
+    }));
+  }, [filteredTrades, quotes, grouped]);
 
   // ── Compute derived values
   const computedRows = useMemo((): DisplayRow[] => {
@@ -2409,7 +2468,21 @@ export default function TradeJournalPage() {
                 {quotesLoading && <span className="ml-2 text-primary animate-pulse">• Fetching live prices…</span>}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* Journal / Analytics toggle */}
+              <div className="flex border border-outline-variant overflow-hidden rounded-sm">
+                {(['journal', 'analytics'] as const).map(v => (
+                  <button key={v} onClick={() => setView(v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      view === v ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
+                    }`}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                      {v === 'journal' ? 'table_rows' : 'show_chart'}
+                    </span>
+                    {v}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={() => setCloseModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-surface-container border border-outline-variant text-on-surface rounded-sm hover:bg-surface-container-high transition-colors"
@@ -2509,14 +2582,163 @@ export default function TradeJournalPage() {
               Grouped
             </label>
 
+            {/* Date range filter */}
+            <div className="flex items-center gap-1.5">
+              <div className="flex border border-outline-variant overflow-hidden rounded-sm">
+                {(['buy', 'sell'] as const).map(f => (
+                  <button key={f} onClick={() => setDateField(f)}
+                    className={`px-2.5 py-1 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      dateField === f ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
+                    }`}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => setDateFrom(e.target.value)}
+                className="bg-surface-container border border-outline-variant text-on-surface px-2 py-1 text-xs focus:outline-none focus:border-primary [color-scheme:dark] w-32"
+              />
+              <span className="text-on-surface-variant text-xs">–</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => setDateTo(e.target.value)}
+                className="bg-surface-container border border-outline-variant text-on-surface px-2 py-1 text-xs focus:outline-none focus:border-primary [color-scheme:dark] w-32"
+              />
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="text-on-surface-variant hover:text-on-surface transition-colors"
+                  title="Clear date filter">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>close</span>
+                </button>
+              )}
+            </div>
+
             <span className="ml-auto text-xs text-on-surface-variant">
               {displayRows.length} rows
-              {selectedMethods.size > 0 || selectedAccounts.size > 0 || instrumentFilter || status !== 'all'
+              {selectedMethods.size > 0 || selectedAccounts.size > 0 || instrumentFilter || status !== 'all' || dateFrom || dateTo
                 ? ` (filtered from ${allTrades.length})`
                 : ''}
             </span>
           </div>
 
+          {view === 'analytics' ? (
+            /* ── Analytics view ───────────────────────────────────────────── */
+            <div className="space-y-4">
+
+              {/* Analytics sub-tabs */}
+              <div className="flex border-b border-outline-variant">
+                {([
+                  { key: 'performance', label: 'Performance', icon: 'show_chart'     },
+                  { key: 'risk',        label: 'Risk',        icon: 'shield'          },
+                  { key: 'time',        label: 'Time',        icon: 'calendar_month'  },
+                  { key: 'open',        label: 'Open Positions', icon: 'pending'      },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setAnalyticsTab(tab.key)}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider border-b-2 transition-colors -mb-px ${
+                      analyticsTab === tab.key
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-on-surface-variant hover:text-on-surface hover:border-outline-variant'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Performance tab */}
+              {analyticsTab === 'performance' && (
+                <div className="space-y-4">
+                  {/* Row 1: Equity Curve + Trades list */}
+                  <div className="grid grid-cols-2 gap-4 items-start">
+                    <EquityCurve
+                      trades={chartTrades}
+                      initialCapital={initialCapital}
+                      compact
+                      showRecentTrades={false}
+                      onCapitalChange={v => {
+                        setInitialCapital(v);
+                        localStorage.setItem('tj_initial_capital', String(v));
+                      }}
+                    />
+
+                    <div className="bg-surface-container border border-outline-variant">
+                      <div className="px-4 py-2.5 border-b border-outline-variant flex items-center gap-2">
+                        <span className="text-sm font-bold text-on-surface">Trades</span>
+                        <span className="text-[10px] text-on-surface-variant/50">{chartTrades.length} total</span>
+                        <span className="ml-auto text-[10px] text-on-surface-variant/50">
+                          {chartTrades.filter(t => t.isOpen).length} open · {chartTrades.filter(t => !t.isOpen).length} closed
+                        </span>
+                      </div>
+                      {chartTrades.length === 0 ? (
+                        <div className="px-4 py-8 text-xs text-on-surface-variant text-center">No trades in current filter.</div>
+                      ) : (
+                        <div className="divide-y divide-outline-variant/40 max-h-[340px] overflow-y-auto">
+                          {[...chartTrades]
+                            .sort((a, b) => b.pnl - a.pnl)
+                            .map(t => {
+                              const isWin = t.pnl >= 0;
+                              const sign  = t.pnl >= 0 ? '+' : '';
+                              const fmt   = (n: number) => { const a = Math.abs(n); if (a >= 1e7) return '₹'+(a/1e7).toFixed(2)+'Cr'; if (a >= 1e5) return '₹'+(a/1e5).toFixed(1)+'L'; if (a >= 1e3) return '₹'+(a/1e3).toFixed(1)+'K'; return '₹'+a.toLocaleString('en-IN'); };
+                              return (
+                                <div key={t.id} className="flex items-center justify-between px-4 py-2 text-xs hover:bg-surface-container-high transition-colors">
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-on-surface font-mono block truncate">{t.stock}</span>
+                                    <span className="text-on-surface-variant/60 text-[10px]">
+                                      {t.entry_date}
+                                      {t.isOpen
+                                        ? <span className="ml-1.5 px-1 py-0.5 bg-secondary/15 text-secondary border border-secondary/30 rounded-sm font-label-caps uppercase text-[9px]">Open</span>
+                                        : <> → {t.exit_date}</>
+                                      }
+                                    </span>
+                                  </div>
+                                  <span className={`font-mono font-bold ml-3 shrink-0 ${isWin ? 'text-secondary' : 'text-tertiary'}`}>
+                                    {sign}{fmt(t.pnl)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <StockPnL trades={chartTrades} />
+                  <WinRateChart trades={chartTrades} />
+                  <ReturnDistribution trades={chartTrades} />
+                </div>
+              )}
+
+              {/* Risk tab */}
+              {analyticsTab === 'risk' && (
+                <div className="space-y-4">
+                  <DrawdownChart trades={chartTrades} initialCapital={initialCapital} />
+                  <PositionSizeBubble trades={chartTrades} initialCapital={initialCapital} />
+                </div>
+              )}
+
+              {/* Time tab */}
+              {analyticsTab === 'time' && (
+                <div className="flex items-center justify-center py-20 text-sm text-on-surface-variant">
+                  Time analysis charts coming soon.
+                </div>
+              )}
+
+              {/* Open Positions tab */}
+              {analyticsTab === 'open' && (
+                <div className="flex items-center justify-center py-20 text-sm text-on-surface-variant">
+                  Open positions analysis coming soon.
+                </div>
+              )}
+
+            </div>
+          ) : (
+          <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 gap-4">
             <SummaryCard title="Profits Only" count={summary.profits.count}
@@ -2631,6 +2853,8 @@ export default function TradeJournalPage() {
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
 
         </div>
