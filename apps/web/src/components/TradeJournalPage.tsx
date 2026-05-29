@@ -162,24 +162,37 @@ const roundTo10p = (v: number) => (Math.round(v * 10) / 10).toFixed(2);
 
 // ─── Multi-select dropdown ────────────────────────────────────────────────────
 
-function MultiSelect({ label, options, selected, onToggle }: {
+function MultiSelect({ label, options, selected, onToggle, labelMap }: {
   label: string;
   options: string[];
   selected: Set<string>;
   onToggle: (v: string) => void;
+  labelMap?: Record<string, string>;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen]     = useState(false);
+  const [search, setSearch] = useState('');
+  const ref       = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSearch(''); }
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const count = selected.size;
+  useEffect(() => {
+    if (open && labelMap) setTimeout(() => searchRef.current?.focus(), 50);
+    else setSearch('');
+  }, [open]);
+
+  const count    = selected.size;
+  const q        = search.toLowerCase();
+  const filtered = q
+    ? options.filter(opt => (labelMap?.[opt] ?? opt).toLowerCase().includes(q) || opt.toLowerCase().includes(q))
+    : options;
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -196,13 +209,31 @@ function MultiSelect({ label, options, selected, onToggle }: {
         </span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-30 bg-surface-container border border-outline-variant rounded-sm shadow-lg min-w-[130px] py-1 max-h-64 overflow-y-auto">
-          {options.map(opt => (
-            <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-container-high cursor-pointer text-xs text-on-surface">
-              <input type="checkbox" checked={selected.has(opt)} onChange={() => onToggle(opt)} className="accent-primary w-3 h-3" />
-              {opt}
-            </label>
-          ))}
+        <div className="absolute top-full left-0 mt-1 z-30 bg-surface-container border border-outline-variant rounded-sm shadow-lg min-w-[200px] max-h-72 flex flex-col overflow-hidden">
+          {labelMap && (
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-outline-variant bg-surface-container shrink-0">
+              <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '14px' }}>search</span>
+              <input ref={searchRef} type="text" value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="flex-1 bg-transparent text-xs text-on-surface placeholder:text-on-surface-variant/50 outline-none" />
+              {search && (
+                <button onClick={() => setSearch('')}>
+                  <span className="material-symbols-outlined text-on-surface-variant hover:text-on-surface" style={{ fontSize: '13px' }}>close</span>
+                </button>
+              )}
+            </div>
+          )}
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-on-surface-variant text-center">No match</div>
+            ) : filtered.map(opt => (
+              <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-container-high cursor-pointer text-xs text-on-surface">
+                <input type="checkbox" checked={selected.has(opt)} onChange={() => onToggle(opt)} className="accent-primary w-3 h-3 shrink-0" />
+                <span className="truncate">{labelMap?.[opt] ?? opt}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -2008,6 +2039,15 @@ export default function TradeJournalPage() {
   const allMethods  = useMemo(() => [...new Set(allTrades.map(t => t.method))].sort(), [allTrades]);
   const allAccounts = useMemo(() => [...new Set(allTrades.map(t => t.account))].sort(), [allTrades]);
 
+  const accountLabelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const id of allAccounts) {
+      const user = activeUsers[id];
+      map[id] = user?.name ? `${user.name} (${id})` : id;
+    }
+    return map;
+  }, [allAccounts, activeUsers]);
+
   // Autocomplete suggestions — distinct instruments matching the current text
   const instrSuggestions = useMemo(() => {
     const q = instrumentFilter.trim().toLowerCase();
@@ -2040,11 +2080,12 @@ export default function TradeJournalPage() {
   useEffect(() => { fetchAllTrades(); }, []);
 
   useEffect(() => {
-    fetch('/api/users/active')
+    fetch('/api/users?page=1')
       .then(r => r.json())
       .then((data: any) => {
         const map: Record<string, JournalUser> = {};
         for (const u of (data.data ?? [])) {
+          if (!u.zerodha_user_id) continue;
           map[u.zerodha_user_id] = { zerodha_user_id: u.zerodha_user_id, name: u.name ?? null };
         }
         setActiveUsers(map);
@@ -2550,7 +2591,7 @@ export default function TradeJournalPage() {
             <MultiSelect label="Method" options={allMethods} selected={selectedMethods} onToggle={toggleMethod} />
 
             {/* Accounts */}
-            <MultiSelect label="Account" options={allAccounts} selected={selectedAccounts} onToggle={toggleAccount} />
+            <MultiSelect label="Account" options={allAccounts} selected={selectedAccounts} onToggle={toggleAccount} labelMap={accountLabelMap} />
 
             {/* Instrument autocomplete */}
             <div ref={instrDropRef} className="relative">

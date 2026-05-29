@@ -570,6 +570,197 @@ function SipCalculator() {
   );
 }
 
+// ── Gold Jewellery Calculator ─────────────────────────────────────────────────
+
+function GoldJewelleryCalculator() {
+  const [goldRate,   setGoldRate]   = useState('14000');
+  const [itemWeight, setItemWeight] = useState('15');
+  const [gstPct,     setGstPct]     = useState('0');
+  const [cols, setCols] = useState([
+    { wastage: '12', making: '2000' },
+    { wastage: '8',  making: '2000' },
+    { wastage: '10', making: '2000' },
+    { wastage: '7',  making: '650'  },
+  ]);
+
+  const gr  = parseFloat(goldRate)   || 0;
+  const iw  = parseFloat(itemWeight) || 0;
+  const gst = (parseFloat(gstPct)    || 0) / 100;
+
+  const computed = useMemo(() => cols.map(col => {
+    const wp = (parseFloat(col.wastage) || 0) / 100;
+    const mc = parseFloat(col.making)   || 0;
+    if (gr <= 0 || iw <= 0 || col.wastage === '') return null;
+    const wastageWeight = iw * wp;
+    const totalWeight   = iw + wastageWeight;
+    const goldAmt       = iw * gr;
+    const wastageAmt    = wastageWeight * gr;
+    const total         = goldAmt + wastageAmt + mc;
+    const gstAmt        = total * gst;
+    const grandTotal    = total + gstAmt;
+    const avgPerGram    = grandTotal / iw;
+    const extraPerGram  = avgPerGram - gr;
+    const overallExtra  = grandTotal - iw * gr;
+    return { wastageWeight, totalWeight, goldAmt, wastageAmt, making: mc, total, gstAmt, grandTotal, avgPerGram, extraPerGram, overallExtra };
+  }), [cols, gr, iw, gst]);
+
+  function updateCol(i: number, field: 'wastage' | 'making', val: string) {
+    setCols(prev => prev.map((c, idx) => idx === i ? { ...c, [field]: val } : c));
+  }
+
+  const f2 = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const f0 = (v: number) => Math.round(v).toLocaleString('en-IN');
+
+  const lbl  = 'px-3 py-2 text-[11px] text-on-surface-variant font-label-caps tracking-wider whitespace-nowrap border-r border-outline-variant/30 bg-surface-container';
+  const cell = 'px-3 py-2 text-xs font-data-mono text-right whitespace-nowrap border-r border-outline-variant/20 last:border-r-0';
+  const inp  = 'bg-surface-container-lowest border border-outline-variant text-on-surface font-data-mono px-2 py-0.5 text-xs focus:outline-none focus:border-primary text-right w-full';
+
+  return (
+    <section className="bg-surface-container border border-outline-variant rounded-sm">
+      <SectionHeader title="Gold Jewellery — Price Breakup" sub="Compare up to 4 wastage / making charge scenarios" />
+      <div className="p-5 space-y-4">
+        <div className="overflow-x-auto">
+          <table className="border-collapse text-xs w-full">
+            <thead>
+              <tr>
+                <th colSpan={cols.length + 1}
+                  className="text-center py-2.5 text-sm font-bold text-amber-400 bg-amber-900/20 border border-outline-variant tracking-wide">
+                  Gold Jewellery — Price Breakup
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/20">
+
+              {/* Global inputs */}
+              <tr className="bg-surface-container-high/40">
+                <td className={lbl}>Gold Rate (₹/g)</td>
+                <td colSpan={cols.length} className="px-3 py-1.5">
+                  <input type="text" inputMode="decimal" value={goldRate}
+                    onChange={e => setGoldRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                    className={`${inp} w-40`} />
+                </td>
+              </tr>
+              <tr className="bg-surface-container-high/40">
+                <td className={lbl}>Item Weight (g)</td>
+                <td colSpan={cols.length} className="px-3 py-1.5">
+                  <input type="text" inputMode="decimal" value={itemWeight}
+                    onChange={e => setItemWeight(e.target.value.replace(/[^0-9.]/g, ''))}
+                    className={`${inp} w-40`} />
+                </td>
+              </tr>
+
+              {/* Per-column inputs */}
+              <tr className="bg-surface-container-high/40">
+                <td className={lbl}>Wastage (%)</td>
+                {cols.map((col, i) => (
+                  <td key={i} className="px-2 py-1.5 border-r border-outline-variant/20 last:border-r-0">
+                    <input type="text" inputMode="decimal" value={col.wastage}
+                      onChange={e => updateCol(i, 'wastage', e.target.value.replace(/[^0-9.]/g, ''))}
+                      className={inp} />
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-surface-container-high/40">
+                <td className={lbl}>Making Charges (₹)</td>
+                {cols.map((col, i) => (
+                  <td key={i} className="px-2 py-1.5 border-r border-outline-variant/20 last:border-r-0">
+                    <input type="text" inputMode="decimal" value={col.making}
+                      onChange={e => updateCol(i, 'making', e.target.value.replace(/[^0-9.]/g, ''))}
+                      className={inp} />
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-surface-container-high/40">
+                <td className={lbl}>GST (%)</td>
+                <td colSpan={cols.length} className="px-3 py-1.5">
+                  <input type="text" inputMode="decimal" value={gstPct}
+                    onChange={e => setGstPct(e.target.value.replace(/[^0-9.]/g, ''))}
+                    className={`${inp} w-40`} />
+                </td>
+              </tr>
+
+              {/* ── Weight section ── */}
+              <tr><td colSpan={cols.length + 1} className="py-0.5 bg-surface-container-high" /></tr>
+              <tr>
+                <td className={lbl}>Item Weight (g)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f2(iw) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Wastage Weight (g)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f2(c.wastageWeight) : '—'}</td>)}
+              </tr>
+              <tr className="bg-amber-900/20">
+                <td className="px-3 py-2 text-[11px] font-bold text-amber-400 whitespace-nowrap border-r border-outline-variant/30">Total Weight (g)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-amber-400 font-bold`}>{c ? f2(c.totalWeight) : '—'}</td>)}
+              </tr>
+
+              {/* ── Amount section ── */}
+              <tr><td colSpan={cols.length + 1} className="py-0.5 bg-surface-container-high" /></tr>
+              <tr>
+                <td className={lbl}>Gold (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f0(c.goldAmt) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Wastage (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f0(c.wastageAmt) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Making (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f0(c.making) : '—'}</td>)}
+              </tr>
+              <tr className="bg-blue-900/30">
+                <td className="px-3 py-2 text-[11px] font-bold text-blue-300 whitespace-nowrap border-r border-outline-variant/30">Total (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-blue-300 font-bold`}>{c ? f2(c.total) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>GST Amount (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f2(c.gstAmt) : '—'}</td>)}
+              </tr>
+
+              {/* ── Grand Total & Summary ── */}
+              <tr><td colSpan={cols.length + 1} className="py-0.5 bg-surface-container-high" /></tr>
+              <tr className="bg-emerald-900/20">
+                <td className="px-3 py-2 text-[11px] font-bold text-secondary whitespace-nowrap border-r border-outline-variant/30">Grand Total (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-secondary font-bold`}>{c ? f2(c.grandTotal) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Avg Per Gram (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-on-surface`}>{c ? f2(c.avgPerGram) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Extra Per Gram (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-tertiary`}>{c ? f2(c.extraPerGram) : '—'}</td>)}
+              </tr>
+              <tr>
+                <td className={lbl}>Overall Extra (₹)</td>
+                {computed.map((c, i) => <td key={i} className={`${cell} text-tertiary`}>{c ? f2(c.overallExtra) : '—'}</td>)}
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {cols.length < 4 && (
+            <button onClick={() => setCols(p => [...p, { wastage: '', making: '' }])}
+              className="flex items-center gap-1.5 px-4 py-2 border border-outline-variant text-xs font-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>add</span>
+              Add Column
+            </button>
+          )}
+          {cols.length > 1 && (
+            <button onClick={() => setCols(p => p.slice(0, -1))}
+              className="flex items-center gap-1.5 px-4 py-2 border border-outline-variant text-xs font-label-caps uppercase text-on-surface-variant hover:text-tertiary transition-colors">
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>remove</span>
+              Remove Last
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function parseSectors(raw: string): { name: string; stocks: string[] }[] {
@@ -788,6 +979,7 @@ export default function MiscellaneousPage() {
             <CompoundInterestTable />
             <PercentageCalculator />
             <SipCalculator />
+            <GoldJewelleryCalculator />
             <TradeMethods />
           </div>
         )}
