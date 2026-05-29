@@ -80,6 +80,25 @@ export default async function securitiesRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // POST /api/securities/batch — bulk symbol lookup, returns map of symbol → { exchange, series }
+    fastify.post('/api/securities/batch', async (request, reply) => {
+        const { symbols } = request.body as { symbols?: string[] };
+        if (!Array.isArray(symbols) || symbols.length === 0)
+            return reply.status(400).send({ error: 'symbols array required' });
+
+        const rows = await Security.findAll({
+            where: { symbol: { [Op.in]: symbols.map((s: string) => s.toUpperCase()) } },
+            attributes: ['symbol', 'exchange', 'series'],
+            raw: true,
+        });
+
+        const map: Record<string, { exchange: string; series: string }> = {};
+        for (const r of rows) {
+            if (r.symbol) map[r.symbol] = { exchange: r.exchange, series: r.series };
+        }
+        return reply.send({ data: map });
+    });
+
     // DELETE /api/securities/:id
     fastify.delete('/api/securities/:id', async (request, reply) => {
         const { id } = request.params as { id: string };

@@ -11,6 +11,7 @@ interface KiteHolding {
   tradingsymbol: string;
   exchange: string;
   quantity: number;
+  t1_quantity: number;
   average_price: number;
 }
 
@@ -65,6 +66,8 @@ function fyersSymbol(tradingsymbol: string, _exchange: string): string {
     : `NSE:${tradingsymbol}-EQ`;
 }
 
+const totalQty = (h: KiteHolding) => h.quantity + (h.t1_quantity ?? 0);
+
 function getLtp(h: KiteHolding, quotes: Record<string, FyersQuote>): number {
   return quotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.lp ?? 0;
 }
@@ -73,12 +76,12 @@ function getSortValue(h: KiteHolding, key: SortKey, quotes: Record<string, Fyers
   const ltp = getLtp(h, quotes);
   switch (key) {
     case 'tradingsymbol':         return h.tradingsymbol;
-    case 'quantity':              return h.quantity;
+    case 'quantity':              return totalQty(h);
     case 'average_price':         return h.average_price;
     case 'last_price':            return ltp;
-    case 'invested':              return h.quantity * h.average_price;
-    case 'cur_val':               return ltp * h.quantity;
-    case 'pnl':                   return ltp * h.quantity - h.quantity * h.average_price;
+    case 'invested':              return totalQty(h) * h.average_price;
+    case 'cur_val':               return ltp * totalQty(h);
+    case 'pnl':                   return ltp * totalQty(h) - totalQty(h) * h.average_price;
     case 'pnl_pct':               return h.average_price > 0 ? ((ltp - h.average_price) / h.average_price) * 100 : 0;
     case 'day_change_percentage': return quotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.chp ?? 0;
   }
@@ -100,7 +103,8 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
   const [currentType, setCurrentType] = useState<'BUY' | 'SELL'>(type);
   const isBuy = currentType === 'BUY';
 
-  const [qty, setQty]             = useState(isBuy ? '' : String(holding.quantity));
+  const holdQty = holding.quantity + (holding.t1_quantity ?? 0);
+  const [qty, setQty]             = useState(isBuy ? '' : String(holdQty));
   const [activePct, setActivePct] = useState('100%');
   const [customPct, setCustomPct] = useState('');
   const [order_type, setOrderType] = useState<OrderType>('LIMIT');
@@ -135,7 +139,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
   function handleToggleType() {
     const newType = currentType === 'BUY' ? 'SELL' : 'BUY';
     setCurrentType(newType);
-    setQty(newType === 'BUY' ? '' : String(holding.quantity));
+    setQty(newType === 'BUY' ? '' : String(holdQty));
     setActivePct('100%');
     setCustomPct('');
     setPrice(ltp > 0 ? roundTo10p(ltp) : '');
@@ -171,7 +175,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
   const canSubmit =
     qtyNum > 0 &&
     (order_type === 'MARKET' || priceNum > 0) &&
-    !(!isBuy && qtyNum > holding.quantity) &&
+    !(!isBuy && qtyNum > holdQty) &&
     !marginInsufficient;
 
   async function placeOrder() {
@@ -312,7 +316,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] text-on-surface-variant uppercase font-label-caps">Holding</span>
-                    <span className="text-on-surface font-bold">{inrQtyL(holding.quantity)}</span>
+                    <span className="text-on-surface font-bold">{inrQtyL(holdQty)}</span>
                   </div>
                 </div>
               </div>
@@ -339,7 +343,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
                       <button key={pct} type="button"
                         onClick={() => {
                           setActivePct(pct); setCustomPct('');
-                          setQty(String(Math.floor(holding.quantity * parseFloat(pct) / 100)));
+                          setQty(String(Math.floor(holdQty * parseFloat(pct) / 100)));
                         }}
                         className={`px-3 py-1 text-[10px] font-bold font-data-mono transition-colors ${
                           activePct === pct && customPct === '' ? 'bg-tertiary text-on-tertiary' : 'hover:bg-tertiary/20 text-on-surface'
@@ -350,7 +354,7 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
                         const v = e.target.value.replace(/[^0-9.]/g, '');
                         setCustomPct(v);
                         const p = parseFloat(v);
-                        if (!isNaN(p) && p > 0) setQty(String(Math.floor(holding.quantity * Math.min(p, 100) / 100)));
+                        if (!isNaN(p) && p > 0) setQty(String(Math.floor(holdQty * Math.min(p, 100) / 100)));
                       }}
                       placeholder="Custom"
                       className="w-16 bg-transparent border-l border-outline-variant text-[10px] text-center font-data-mono text-on-surface focus:outline-none py-1 px-1" />
@@ -366,10 +370,10 @@ function TradeModal({ holding, type, zerodha_user_id, name, ltp, chp, onClose }:
                     onChange={e => { setQty(e.target.value.replace(/[^0-9]/g, '')); if (!isBuy) { setActivePct(''); setCustomPct(''); } }}
                     placeholder="Enter quantity"
                     className={`w-full bg-surface-container-lowest border text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none ${
-                      !isBuy && qtyNum > holding.quantity ? 'border-tertiary/60 focus:border-tertiary' : 'border-outline-variant focus:border-primary'
+                      !isBuy && qtyNum > holdQty ? 'border-tertiary/60 focus:border-tertiary' : 'border-outline-variant focus:border-primary'
                     }`} />
-                  {!isBuy && qtyNum > holding.quantity && (
-                    <p className="text-[10px] font-label-caps text-tertiary">Exceeds holding ({inrQtyL(holding.quantity)})</p>
+                  {!isBuy && qtyNum > holdQty && (
+                    <p className="text-[10px] font-label-caps text-tertiary">Exceeds holding ({inrQtyL(holdQty)})</p>
                   )}
                 </div>
               </div>
@@ -671,8 +675,8 @@ export default function DashboardPage() {
   const summary = useMemo(() => {
     const ltpOf = (h: KiteHolding) => fyersQuotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.lp ?? 0;
     const calc = (hs: KiteHolding[]) => {
-      const totalInvested = hs.reduce((s, h) => s + h.quantity * h.average_price, 0);
-      const totalCurVal   = hs.reduce((s, h) => s + ltpOf(h) * h.quantity, 0);
+      const totalInvested = hs.reduce((s, h) => s + totalQty(h) * h.average_price, 0);
+      const totalCurVal   = hs.reduce((s, h) => s + ltpOf(h) * totalQty(h), 0);
       const totalPnl      = totalCurVal - totalInvested;
       const totalPnlPct   = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
       return { totalInvested, totalCurVal, totalPnl, totalPnlPct };
@@ -989,8 +993,9 @@ export default function DashboardPage() {
                       const fq       = fyersQuotes[fyersSymbol(h.tradingsymbol, h.exchange)];
                       const ltp      = fq?.lp ?? null;
                       const ltpVal   = ltp ?? 0;
-                      const invested = h.quantity * h.average_price;
-                      const curVal   = ltpVal * h.quantity;
+                      const qty      = totalQty(h);
+                      const invested = qty * h.average_price;
+                      const curVal   = ltpVal * qty;
                       const pnl      = curVal - invested;
                       const pnlPos   = pnl >= 0;
                       const pct      = h.average_price > 0 ? ((ltpVal - h.average_price) / h.average_price) * 100 : 0;
@@ -1017,7 +1022,12 @@ export default function DashboardPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="p-3 text-right text-on-surface">{inrQty(h.quantity)}</td>
+                          <td className="p-3 text-right text-on-surface">
+                            {inrQty(qty)}
+                            {h.t1_quantity > 0 && (
+                              <span className="block text-[10px] text-on-surface-variant">T1: {inrQty(h.t1_quantity)}</span>
+                            )}
+                          </td>
                           <td className="p-3 text-right text-on-surface">{inr(h.average_price)}</td>
                           <td className={`p-3 text-right ${pnlPos ? 'text-secondary' : 'text-tertiary'}`}>
                             {ltp != null ? inr(ltp) : <span className="text-on-surface-variant">—</span>}

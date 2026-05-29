@@ -123,6 +123,7 @@ interface SellHolding {
   zerodha_user_id: string;
   name: string | null;
   quantity: number;
+  t1_quantity: number;
   average_price: number;
 }
 
@@ -130,6 +131,7 @@ interface AllHoldingItem {
   tradingsymbol: string;
   exchange: string;
   quantity: number;
+  t1_quantity: number;
   average_price: number;
 }
 
@@ -260,7 +262,8 @@ function BulkSellModal({ holding, security, initialQty, initialLimitPrice, initi
   const amount         = qtyNum > 0 && effectivePrice > 0 ? qtyNum * effectivePrice : null;
   const fee            = amount != null && order_type !== 'GTT' ? amount * 0.00119063431 : null;
   const getAmt         = amount != null && fee != null ? amount - fee : null;
-  const canSubmit      = qtyNum > 0 && !isNaN(qtyNum) && qtyNum <= holding.quantity &&
+  const holdQty        = holding.quantity + holding.t1_quantity;
+  const canSubmit      = qtyNum > 0 && !isNaN(qtyNum) && qtyNum <= holdQty &&
                          (order_type === 'MARKET' || (priceNum > 0 && !isNaN(priceNum)));
 
   const gttExpiry = new Date(); gttExpiry.setFullYear(gttExpiry.getFullYear() + 2);
@@ -411,7 +414,7 @@ function BulkSellModal({ holding, security, initialQty, initialLimitPrice, initi
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] text-on-surface-variant uppercase font-label-caps">Holding</span>
-                    <span className="text-on-surface font-bold">{holding.quantity.toLocaleString('en-IN')}</span>
+                    <span className="text-on-surface font-bold">{holdQty.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
@@ -439,7 +442,7 @@ function BulkSellModal({ holding, security, initialQty, initialLimitPrice, initi
                     <button key={pct} type="button"
                       onClick={() => {
                         setActivePct(pct); setCustomPct('');
-                        setQty(String(Math.floor(holding.quantity * parseFloat(pct) / 100)));
+                        setQty(String(Math.floor(holdQty * parseFloat(pct) / 100)));
                       }}
                       className={`px-3 py-1 text-[10px] font-bold font-data-mono transition-colors ${
                         activePct === pct && customPct === '' ? 'bg-tertiary text-on-tertiary' : 'hover:bg-tertiary/20 text-on-surface'
@@ -450,7 +453,7 @@ function BulkSellModal({ holding, security, initialQty, initialLimitPrice, initi
                       const v = e.target.value.replace(/[^0-9.]/g, '');
                       setCustomPct(v);
                       const p = parseFloat(v);
-                      if (!isNaN(p) && p > 0) setQty(String(Math.floor(holding.quantity * Math.min(p, 100) / 100)));
+                      if (!isNaN(p) && p > 0) setQty(String(Math.floor(holdQty * Math.min(p, 100) / 100)));
                     }}
                     placeholder="Custom"
                     className="w-16 bg-transparent border-l border-outline-variant text-[10px] text-center font-data-mono text-on-surface focus:outline-none py-1 px-1" />
@@ -464,10 +467,10 @@ function BulkSellModal({ holding, security, initialQty, initialLimitPrice, initi
                   <input type="text" inputMode="numeric" value={qty}
                     onChange={e => { setQty(e.target.value.replace(/[^0-9]/g, '')); setActivePct(''); setCustomPct(''); }}
                     className={`w-full bg-surface-container-lowest border text-on-surface font-data-mono px-3 py-1.5 text-sm focus:outline-none ${
-                      qtyNum > holding.quantity ? 'border-tertiary/60 focus:border-tertiary' : 'border-outline-variant focus:border-primary'
+                      qtyNum > holdQty ? 'border-tertiary/60 focus:border-tertiary' : 'border-outline-variant focus:border-primary'
                     }`} />
-                  {qtyNum > holding.quantity && (
-                    <p className="text-[10px] font-label-caps text-tertiary">Exceeds holding ({holding.quantity.toLocaleString('en-IN')})</p>
+                  {qtyNum > holdQty && (
+                    <p className="text-[10px] font-label-caps text-tertiary">Exceeds holding ({holdQty.toLocaleString('en-IN')})</p>
                   )}
                 </div>
               </div>
@@ -2357,6 +2360,8 @@ export default function BulkOrderPage() {
   const [showSellMultipleConfirm, setShowSellMultipleConfirm] = useState(false);
   const [allHoldingsSellConfirmModal, setAllHoldingsSellConfirmModal] = useState<AllHoldingItem | null>(null);
   const [showAllHoldingsSellMultipleConfirm, setShowAllHoldingsSellMultipleConfirm] = useState(false);
+  const [allHoldingsSortKey, setAllHoldingsSortKey] = useState<'tradingsymbol' | 'holding' | 'average_price' | 'invested' | 'curr_value' | 'pnl' | 'pnl_pct'>('pnl_pct');
+  const [allHoldingsSortDir, setAllHoldingsSortDir] = useState<'asc' | 'desc'>('desc');
   const [buyConfirmModal, setBuyConfirmModal] = useState<BuyUser | null>(null);
 
   // GTT management
@@ -2451,7 +2456,7 @@ export default function BulkOrderPage() {
         const users: BuyUser[] = data ?? [];
         setBuyUsers(users);
         const sel: Record<string, boolean> = {};
-        users.forEach(u => { sel[u.zerodha_user_id] = true; });
+        users.forEach(u => { sel[u.zerodha_user_id] = false; });
         setBuySelected(sel);
         // Fetch margins for each user in parallel
         users.forEach(u => {
@@ -2583,11 +2588,11 @@ export default function BulkOrderPage() {
       .then(r => r.json())
       .then(async (res) => {
         const items: AllHoldingItem[] = (res.data ?? [])
-          .filter((h: any) => h.quantity > 0)
-          .map((h: any) => ({ tradingsymbol: h.tradingsymbol, exchange: h.exchange ?? 'NSE', quantity: h.quantity, average_price: h.average_price }));
+          .filter((h: any) => (h.quantity + (h.t1_quantity ?? 0)) > 0)
+          .map((h: any) => ({ tradingsymbol: h.tradingsymbol, exchange: h.exchange ?? 'NSE', quantity: h.quantity, t1_quantity: h.t1_quantity ?? 0, average_price: h.average_price }));
         setAllHoldings(items);
         const sel: Record<string, boolean> = {};
-        items.forEach(h => { sel[h.tradingsymbol] = true; });
+        items.forEach(h => { sel[h.tradingsymbol] = false; });
         setAllHoldingsSelected(sel);
         setAllHoldingsQtyOverrides({});
         setAllHoldingsOrderStatus({});
@@ -2626,10 +2631,10 @@ export default function BulkOrderPage() {
       buyUsers.map(u =>
         fetch(`/api/users/${encodeURIComponent(u.zerodha_user_id)}/holdings`)
           .then(r => r.json())
-          .then((res: { data?: { tradingsymbol: string; quantity: number; average_price: number }[] }) => {
+          .then((res: { data?: { tradingsymbol: string; quantity: number; t1_quantity: number; average_price: number }[] }) => {
             const match = (res.data ?? []).find(h => h.tradingsymbol === selectedSecurity.symbol);
-            if (!match || match.quantity <= 0) return null;
-            return { zerodha_user_id: u.zerodha_user_id, name: u.name, quantity: match.quantity, average_price: match.average_price } as SellHolding;
+            if (!match || (match.quantity + (match.t1_quantity ?? 0)) <= 0) return null;
+            return { zerodha_user_id: u.zerodha_user_id, name: u.name, quantity: match.quantity, t1_quantity: match.t1_quantity ?? 0, average_price: match.average_price } as SellHolding;
           })
           .catch(() => null)
       )
@@ -2637,7 +2642,7 @@ export default function BulkOrderPage() {
       const valid = results.filter((h): h is SellHolding => h !== null);
       setSellHoldings(valid);
       const sel: Record<string, boolean> = {};
-      valid.forEach(h => { sel[h.zerodha_user_id] = true; });
+      valid.forEach(h => { sel[h.zerodha_user_id] = false; });
       setSellSelected(sel);
       setSellQtyOverrides({});
     }).finally(() => setLoadingSellHoldings(false));
@@ -2654,13 +2659,13 @@ export default function BulkOrderPage() {
   function computeSellQty(h: SellHolding): number {
     const ov = sellQtyOverrides[h.zerodha_user_id];
     if (ov !== undefined) return parseInt(ov, 10) || 0;
-    return Math.floor(h.quantity * effectivePct() / 100);
+    return Math.floor((h.quantity + h.t1_quantity) * effectivePct() / 100);
   }
 
   function sellQtyInputValue(h: SellHolding): string {
     const ov = sellQtyOverrides[h.zerodha_user_id];
     if (ov !== undefined) return ov;
-    return String(Math.floor(h.quantity * effectivePct() / 100));
+    return String(Math.floor((h.quantity + h.t1_quantity) * effectivePct() / 100));
   }
 
   async function placeSellOrder(h: SellHolding) {
@@ -2738,13 +2743,13 @@ export default function BulkOrderPage() {
   function computeAllHoldingsSellQty(h: AllHoldingItem): number {
     const ov = allHoldingsQtyOverrides[h.tradingsymbol];
     if (ov !== undefined) return parseInt(ov, 10) || 0;
-    return Math.floor(h.quantity * effectivePct() / 100);
+    return Math.floor((h.quantity + h.t1_quantity) * effectivePct() / 100);
   }
 
   function allHoldingsSellQtyInputValue(h: AllHoldingItem): string {
     const ov = allHoldingsQtyOverrides[h.tradingsymbol];
     if (ov !== undefined) return ov;
-    return String(Math.floor(h.quantity * effectivePct() / 100));
+    return String(Math.floor((h.quantity + h.t1_quantity) * effectivePct() / 100));
   }
 
   async function placeSellOrderAllMode(h: AllHoldingItem) {
@@ -2789,6 +2794,31 @@ export default function BulkOrderPage() {
     await Promise.allSettled(targets.map(h => placeSellOrderAllMode(h)));
     setBulkSelling(false);
   }
+
+  const sortedAllHoldings = useMemo(() => {
+    return [...allHoldings].sort((a, b) => {
+      const ltpA = allHoldingsLtps[a.tradingsymbol] ?? 0;
+      const ltpB = allHoldingsLtps[b.tradingsymbol] ?? 0;
+      const qtyA = a.quantity + a.t1_quantity;
+      const qtyB = b.quantity + b.t1_quantity;
+      const invA = qtyA * a.average_price;
+      const invB = qtyB * b.average_price;
+      let av: number | string, bv: number | string;
+      switch (allHoldingsSortKey) {
+        case 'tradingsymbol':  av = a.tradingsymbol; bv = b.tradingsymbol; break;
+        case 'holding':        av = qtyA; bv = qtyB; break;
+        case 'average_price':  av = a.average_price; bv = b.average_price; break;
+        case 'invested':       av = invA; bv = invB; break;
+        case 'curr_value':     av = ltpA * qtyA; bv = ltpB * qtyB; break;
+        case 'pnl':            av = ltpA * qtyA - invA; bv = ltpB * qtyB - invB; break;
+        case 'pnl_pct':        av = invA > 0 ? ((ltpA - a.average_price) / a.average_price) * 100 : 0;
+                               bv = invB > 0 ? ((ltpB - b.average_price) / b.average_price) * 100 : 0; break;
+        default:               av = 0; bv = 0;
+      }
+      const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number);
+      return allHoldingsSortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [allHoldings, allHoldingsLtps, allHoldingsSortKey, allHoldingsSortDir]);
 
   const allHoldingsAllSelected = allHoldings.length > 0 && allHoldings.every(h => allHoldingsSelected[h.tradingsymbol]);
   const allHoldingsSelectedCount = allHoldings.filter(h => allHoldingsSelected[h.tradingsymbol] && computeAllHoldingsSellQty(h) > 0).length;
@@ -3153,9 +3183,9 @@ export default function BulkOrderPage() {
                     <table className="w-full text-left table-fixed">
                       <colgroup>
                         <col className="w-8" />
-                        <col className="w-44" />
                         <col className="w-32" />
-                        <col className="w-32" />
+                        <col className="w-24" />
+                        <col className="w-24" />
                         <col className="w-20" />
                         <col className="w-28" />
                         <col className="w-28" />
@@ -3357,29 +3387,52 @@ export default function BulkOrderPage() {
                       <table className="w-full text-left table-fixed">
                         <colgroup>
                           <col className="w-8" />
-                          <col className="w-36" />
+                          <col className="w-28" />
                           <col className="w-20" />
-                          <col className="w-28" />
-                          <col className="w-28" />
-                          <col className="w-28" />
-                          <col className="w-24" />
                           <col className="w-20" />
-                          <col className="w-28" />
+                          <col className="w-20" />
+                          <col className="w-20" />
+                          <col className="w-20" />
+                          <col className="w-16" />
+                          <col className="w-20" />
                           <col className="w-20" />
                           <col className="w-24" />
                         </colgroup>
                         <thead>
                           <tr className="border-b border-outline-variant bg-surface-container-low font-label-caps text-[10px] text-on-surface-variant uppercase">
                             <th className="px-4 py-2"></th>
-                            <th className="px-4 py-2">Instrument</th>
-                            <th className="px-4 py-2 text-right">Holding</th>
-                            <th className="px-4 py-2 text-right">Avg Price</th>
-                            <th className="px-4 py-2 text-right">Invested</th>
-                            <th className="px-4 py-2 text-right">Curr Value</th>
-                            <th className="px-4 py-2 text-right">P&amp;L</th>
-                            <th className="px-4 py-2 text-right">P&amp;L%</th>
-                            <th className="px-4 py-2 text-right">Sell Price</th>
+                            {([
+                              { key: 'tradingsymbol', label: 'Instrument', right: false },
+                              { key: 'holding',       label: 'Holding',    right: true  },
+                              { key: 'average_price', label: 'Avg Price',  right: true  },
+                              { key: 'invested',      label: 'Invested',   right: true  },
+                              { key: 'curr_value',    label: 'Curr Value', right: true  },
+                              { key: 'pnl',           label: 'P&L',        right: true  },
+                              { key: 'pnl_pct',       label: 'P&L%',       right: true  },
+                            ] as const).map(col => (
+                              <th key={col.key}
+                                className={`px-4 py-2 cursor-pointer select-none hover:text-on-surface transition-colors ${col.right ? 'text-right' : ''}`}
+                                onClick={() => {
+                                  if (allHoldingsSortKey === col.key) setAllHoldingsSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                                  else { setAllHoldingsSortKey(col.key); setAllHoldingsSortDir('desc'); }
+                                }}>
+                                <span className={`inline-flex items-center gap-0.5 ${col.right ? 'justify-end w-full' : ''}`}>
+                                  {col.right && (
+                                    <span className="material-symbols-outlined" style={{ fontSize: '11px', opacity: allHoldingsSortKey === col.key ? 1 : 0.35 }}>
+                                      {allHoldingsSortKey === col.key ? (allHoldingsSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
+                                    </span>
+                                  )}
+                                  {col.label}
+                                  {!col.right && (
+                                    <span className="material-symbols-outlined" style={{ fontSize: '11px', opacity: allHoldingsSortKey === col.key ? 1 : 0.35 }}>
+                                      {allHoldingsSortKey === col.key ? (allHoldingsSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
+                                    </span>
+                                  )}
+                                </span>
+                              </th>
+                            ))}
                             <th className="px-4 py-2 text-right">Sell Qty</th>
+                            <th className="px-4 py-2 text-right">Sell Price</th>
                             <th className="px-4 py-2 text-center">Action</th>
                           </tr>
                         </thead>
@@ -3398,10 +3451,11 @@ export default function BulkOrderPage() {
                               </td>
                             </tr>
                           )}
-                          {allHoldings.map(h => {
+                          {sortedAllHoldings.map(h => {
                             const ltpVal = allHoldingsLtps[h.tradingsymbol] ?? 0;
-                            const invested = h.quantity * h.average_price;
-                            const currVal = ltpVal > 0 ? h.quantity * ltpVal : 0;
+                            const totalHoldQty = h.quantity + h.t1_quantity;
+                            const invested = totalHoldQty * h.average_price;
+                            const currVal = ltpVal > 0 ? totalHoldQty * ltpVal : 0;
                             const pnl = ltpVal > 0 ? currVal - invested : 0;
                             const pnlPct = invested > 0 && ltpVal > 0 ? (pnl / invested) * 100 : 0;
                             const sellQty = computeAllHoldingsSellQty(h);
@@ -3419,7 +3473,12 @@ export default function BulkOrderPage() {
                                   <span className="text-on-surface font-bold">{h.tradingsymbol}</span>
                                   <span className="block text-[9px] text-on-surface-variant uppercase">{h.exchange}</span>
                                 </td>
-                                <td className="px-4 py-3 text-right text-on-surface">{h.quantity.toLocaleString('en-IN')}</td>
+                                <td className="px-4 py-3 text-right text-on-surface">
+                                  {totalHoldQty.toLocaleString('en-IN')}
+                                  {h.t1_quantity > 0 && (
+                                    <span className="block text-[9px] text-on-surface-variant">T1: {h.t1_quantity.toLocaleString('en-IN')}</span>
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 text-right text-on-surface-variant">{inrDec(h.average_price)}</td>
                                 <td className="px-4 py-3 text-right text-on-surface-variant">{inrFmt(invested)}</td>
                                 <td className="px-4 py-3 text-right text-on-surface">
@@ -3432,16 +3491,16 @@ export default function BulkOrderPage() {
                                   {ltpVal > 0 ? `${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%` : <span className="text-on-surface-variant">—</span>}
                                 </td>
                                 <td className="px-2 py-3 text-right">
-                                  <input type="text" inputMode="decimal"
-                                    value={priceStr}
-                                    onChange={e => setAllHoldingsPrices(p => ({ ...p, [h.tradingsymbol]: e.target.value.replace(/[^0-9.]/g, '') }))}
-                                    className="bg-surface-container-lowest border border-outline-variant/50 w-20 px-2 py-1 text-right text-xs text-on-surface font-bold focus:border-primary focus:outline-none" />
-                                </td>
-                                <td className="px-2 py-3 text-right">
                                   <input type="text" inputMode="numeric"
                                     value={allHoldingsSellQtyInputValue(h)}
                                     onChange={e => setAllHoldingsQtyOverrides(o => ({ ...o, [h.tradingsymbol]: e.target.value.replace(/[^0-9]/g, '') }))}
                                     className="bg-surface-container-lowest border border-outline-variant/50 w-16 px-2 py-1 text-right text-xs text-on-surface font-bold focus:border-primary focus:outline-none" />
+                                </td>
+                                <td className="px-2 py-3 text-right">
+                                  <input type="text" inputMode="decimal"
+                                    value={priceStr}
+                                    onChange={e => setAllHoldingsPrices(p => ({ ...p, [h.tradingsymbol]: e.target.value.replace(/[^0-9.]/g, '') }))}
+                                    className="bg-surface-container-lowest border border-outline-variant/50 w-20 px-2 py-1 text-right text-xs text-on-surface font-bold focus:border-primary focus:outline-none" />
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   {status === 'loading' ? (
@@ -4284,6 +4343,7 @@ export default function BulkOrderPage() {
           zerodha_user_id: selectedOrdersUserId,
           name: user?.name ?? null,
           quantity: h.quantity,
+          t1_quantity: h.t1_quantity,
           average_price: h.average_price,
         };
         const security: SecurityOption = {
@@ -4374,7 +4434,7 @@ export default function BulkOrderPage() {
 
       {gttNewSide === 'SELL' && selectedSecurity && selectedOrdersUserId && (() => {
         const existing = sellHoldings.find(h => h.zerodha_user_id === selectedOrdersUserId);
-        const holding: SellHolding = existing ?? { zerodha_user_id: selectedOrdersUserId, name: buyUsers.find(u => u.zerodha_user_id === selectedOrdersUserId)?.name ?? null, quantity: 99999, average_price: 0 };
+        const holding: SellHolding = existing ?? { zerodha_user_id: selectedOrdersUserId, name: buyUsers.find(u => u.zerodha_user_id === selectedOrdersUserId)?.name ?? null, quantity: 99999, t1_quantity: 0, average_price: 0 };
         return (
           <BulkSellModal
             holding={holding}

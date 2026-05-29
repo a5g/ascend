@@ -4,10 +4,25 @@ const { TradeJournal, TradeMethod } = require('@ascend/db');
 
 export default async function tradeJournalRoutes(fastify: FastifyInstance) {
 
-  // GET /api/trade-journal/methods — distinct method names
+  // GET /api/trade-journal/methods — all method names
   fastify.get('/api/trade-journal/methods', async (_request, reply) => {
     const methods = await TradeMethod.findAll({ order: [['name', 'ASC']] });
     return reply.send({ data: methods.map((m: any) => m.get('name')) });
+  });
+
+  // POST /api/trade-journal/methods — create a new trade method
+  fastify.post('/api/trade-journal/methods', async (request, reply) => {
+    const { name } = request.body as { name?: string };
+    if (!name || !name.trim()) return reply.status(400).send({ error: 'Name is required' });
+    const trimmed = name.trim();
+    if (trimmed.length > 20) return reply.status(400).send({ error: 'Name must be 20 characters or fewer' });
+    try {
+      await TradeMethod.create({ name: trimmed });
+      return reply.status(201).send({ data: trimmed });
+    } catch (err: any) {
+      if (err.name === 'SequelizeUniqueConstraintError') return reply.status(409).send({ error: 'Method already exists' });
+      throw err;
+    }
   });
 
   // GET /api/trade-journal/accounts — distinct account values

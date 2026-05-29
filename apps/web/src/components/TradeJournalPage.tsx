@@ -2053,10 +2053,8 @@ export default function TradeJournalPage() {
   }, []);
 
   useEffect(() => {
-    const openInstruments = [...new Set(
-      allTrades.filter(t => !t.sell_date).map(t => t.instrument)
-    )];
-    if (openInstruments.length > 0) fetchQuotes(openInstruments);
+    const allInstruments = [...new Set(allTrades.map(t => t.instrument))];
+    if (allInstruments.length > 0) fetchQuotes(allInstruments);
   }, [allTrades]);
 
   async function fetchAllTrades() {
@@ -2202,7 +2200,7 @@ export default function TradeJournalPage() {
     const totalInv = filteredTrades.reduce((s, t) => s + t.qty * t.buy_price, 0);
     return filteredTrades.map(t => {
       const isOpen     = !t.sell_date;
-      const ltp        = isOpen ? (quotes[fyersKey(t.instrument)]?.lp  ?? null) : null;
+      const ltp        = quotes[fyersKey(t.instrument)]?.lp  ?? null;
       const day_change = isOpen ? (quotes[fyersKey(t.instrument)]?.chp ?? null) : null;
       const currPrice  = isOpen ? (ltp ?? t.buy_price) : (t.sell_price ?? t.buy_price);
       const invested   = t.qty * t.buy_price;
@@ -2451,7 +2449,6 @@ export default function TradeJournalPage() {
         return <span className="font-mono text-on-surface">{new Intl.NumberFormat('en-IN').format(row.qty)}</span>;
       case 'buy_price':  return <span className="font-mono text-on-surface">{fmtPrice(row.buy_price)}</span>;
       case 'ltp':
-        if (row.status === 'Closed') return <span className="text-on-surface-variant/40">—</span>;
         if (quotesLoading && row.ltp == null) return <span className="text-on-surface-variant/40 animate-pulse">…</span>;
         return <span className="font-mono text-on-surface">{fmtPrice(row.ltp)}</span>;
       case 'sell_price': return <span className="font-mono text-on-surface-variant">{fmtPrice(row.sell_price)}</span>;
