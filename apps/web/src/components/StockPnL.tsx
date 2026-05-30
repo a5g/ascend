@@ -259,7 +259,7 @@ export default function StockPnL({ trades }: StockPnLProps) {
         border: { display: false },
         ticks: {
           color: '#B0AFA8',
-          font: { size: 11, weight: '500' as const },
+          font: { size: 11, weight: 500 },
         },
       },
     },

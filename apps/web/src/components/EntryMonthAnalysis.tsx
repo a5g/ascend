@@ -383,7 +383,7 @@ function StackedView({ monthly }: { monthly: MonthStat[] }) {
       tooltip: {
         callbacks: {
           title: (items: { dataIndex: number }[]) => MONTH_FULL[items[0].dataIndex] + ' entries',
-          label: (ctx: { dataset: { label: string }; raw: unknown }) => ` ${ctx.dataset.label}: ${ctx.raw}`,
+          label: (ctx: { dataset: { label?: string }; raw: unknown }) => ` ${ctx.dataset.label ?? ''}: ${ctx.raw}`,
           afterLabel: (ctx: { dataIndex: number }) => {
             const m = monthly[ctx.dataIndex];
             return ` Win rate: ${m.winRate}%  |  Avg P&L: ${fmtSigned(m.avgPnl)}`;

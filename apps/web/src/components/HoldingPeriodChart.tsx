@@ -119,7 +119,6 @@ function buildTooltipPlugin(points: ScatterPoint[]) {
       if (!tooltip || tooltip.opacity === 0) return;
       const dp = tooltip.dataPoints?.[0];
       if (!dp) return;
-      const idx = dp.dataIndex + (dp.datasetIndex === 1 ? points.filter(p => p.isWin).length : 0);
       // Find point by x/y match since datasets are split win/loss
       const raw = dp.raw as { x: number; y: number };
       const pt  = points.find(p => Math.abs(p.x - raw.x) < 0.01 && Math.abs(p.y - raw.y) < 0.01);

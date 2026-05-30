@@ -314,7 +314,7 @@ function CumulView({ monthly, selectedYear, years }: { monthly: MonthEntry[]; se
         labels: { boxWidth: 12, boxHeight: 2, font: { size: 11 }, color: '#888780', padding: 12 },
       },
       tooltip: {
-        callbacks: { label: (ctx: { dataset: { label: string }; raw: unknown }) => ` ${ctx.dataset.label}: ${fmtSigned(Number(ctx.raw))}` },
+        callbacks: { label: (ctx: { dataset: { label?: string }; raw: unknown }) => ` ${ctx.dataset.label ?? ''}: ${fmtSigned(Number(ctx.raw))}` },
         backgroundColor: '#1C2333', padding: 10, cornerRadius: 8,
         bodyFont: { family: "'DM Sans', sans-serif", size: 12 },
         bodyColor: '#E8E7DF', titleColor: '#E8E7DF',
@@ -533,7 +533,7 @@ function SeasonalView({ seasonal }: { seasonal: SeasonalEntry[]; years: number[]
         </div>
       )}
       <div className="relative w-full" style={{ height: 280 }}>
-        <Bar data={chartData} options={opts} />
+        <Bar data={chartData as any} options={opts} />
       </div>
     </div>
   );
