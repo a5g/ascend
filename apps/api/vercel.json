@@ -26,7 +26,8 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!api).*)", "destination": "/index.html" },
-    { "source": "/api/(.*)", "destination": "/api/index.js" }
+    { "source": "/ascend/(.*)", "destination": "/ascend/apps/web/dist/index.html" },
+    { "source": "/((?!api).*)", "destination": "/ascend/apps/web/dist/index.html" },
+    { "source": "/api/(.*)", "destination": "/api/dist/index.js" }
   ]
 }
