@@ -13,6 +13,6 @@
     }
   ],
   "github": {
-    "productionBranch": "vercel_hosting"
+    "productionBranch": "main"
   }
 }
