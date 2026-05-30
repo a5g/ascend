@@ -11,5 +11,8 @@
       "src": "/(.*)",
       "dest": "index.ts"
     }
-  ]
+  ],
+  "github": {
+    "productionBranch": "vercel_hosting"
+  }
 }
