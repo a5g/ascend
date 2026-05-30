@@ -537,6 +537,148 @@ function isMarketOpen(): boolean {
   return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
 }
 
+// ── Holdings Heatmap ──────────────────────────────────────────────────────────
+
+type HeatSort = 'pnl_pct' | 'name' | 'abs_pnl' | 'day_chg';
+
+const HEAT_SORTS_PNL: { key: HeatSort; label: string }[] = [
+  { key: 'pnl_pct', label: '% P&L'   },
+  { key: 'name',    label: 'Name A-Z' },
+  { key: 'abs_pnl', label: 'P&L ₹'   },
+];
+
+const HEAT_SORTS_DAY: { key: HeatSort; label: string }[] = [
+  { key: 'day_chg', label: 'Day Chg%' },
+  { key: 'name',    label: 'Name A-Z' },
+];
+
+const PALE_GREEN:  [number, number, number] = [220, 252, 231]; // #dcfce7
+const VIVID_GREEN: [number, number, number] = [22,  163, 74 ]; // #16a34a
+const PALE_RED:    [number, number, number] = [254, 226, 226]; // #fee2e2
+const VIVID_RED:   [number, number, number] = [220, 38,  38 ]; // #dc2626
+
+function lerpRgb(c1: [number,number,number], c2: [number,number,number], t: number): string {
+  const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+  const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+  const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function dynHeatStyle(pct: number, maxPos: number, maxNeg: number): { bg: string; textMain: string; textSub: string } {
+  if (pct >= 0) {
+    const t = maxPos > 0 ? Math.min(pct / maxPos, 1) : 0;
+    const bg = lerpRgb(PALE_GREEN, VIVID_GREEN, t);
+    const dark = t > 0.35;
+    return { bg, textMain: dark ? '#ffffff' : '#14532d', textSub: dark ? 'rgba(255,255,255,0.65)' : '#166534' };
+  } else {
+    const t = maxNeg < 0 ? Math.min(Math.abs(pct) / Math.abs(maxNeg), 1) : 0;
+    const bg = lerpRgb(PALE_RED, VIVID_RED, t);
+    const dark = t > 0.35;
+    return { bg, textMain: dark ? '#ffffff' : '#7f1d1d', textSub: dark ? 'rgba(255,255,255,0.65)' : '#b91c1c' };
+  }
+}
+
+function HoldingsHeatmap({ holdings, quotes, mode }: {
+  holdings: KiteHolding[];
+  quotes: Record<string, FyersQuote>;
+  mode: 'pnl' | 'day';
+}) {
+  const sorts  = mode === 'day' ? HEAT_SORTS_DAY : HEAT_SORTS_PNL;
+  const [sortBy, setSortBy] = useState<HeatSort>(sorts[0].key);
+
+  const rows = useMemo(() => {
+    return holdings.map(h => {
+      const ltp      = getLtp(h, quotes);
+      const qty      = totalQty(h);
+      const pnl      = (ltp - h.average_price) * qty;
+      const pnl_pct  = h.average_price > 0 ? ((ltp - h.average_price) / h.average_price) * 100 : 0;
+      const curr_val = ltp * qty;
+      const day_chg  = quotes[fyersSymbol(h.tradingsymbol, h.exchange)]?.chp ?? 0;
+      return { symbol: h.tradingsymbol, ltp, curr_val, pnl, pnl_pct, day_chg };
+    }).sort((a, b) => {
+      if (sortBy === 'pnl_pct') return b.pnl_pct - a.pnl_pct;
+      if (sortBy === 'name')    return a.symbol.localeCompare(b.symbol);
+      if (sortBy === 'abs_pnl') return b.pnl - a.pnl;
+      return b.day_chg - a.day_chg;
+    });
+  }, [holdings, quotes, sortBy]);
+
+  const colorVal = (r: typeof rows[0]) => mode === 'day' ? r.day_chg : r.pnl_pct;
+  const maxPos = Math.max(0, ...rows.map(colorVal));
+  const maxNeg = Math.min(0, ...rows.map(colorVal));
+
+  if (holdings.length === 0) return null;
+
+  const title = mode === 'day' ? 'Day Change Heatmap' : '% P&L Heatmap';
+
+  return (
+    <div className="col-span-12 bg-surface-container border border-outline-variant rounded-sm">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-outline-variant flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-on-surface uppercase tracking-widest">{title}</h3>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-on-surface-variant font-label-caps uppercase mr-1">Sort by:</span>
+          {sorts.map(o => (
+            <button key={o.key} onClick={() => setSortBy(o.key)}
+              className={`px-3 py-1 text-[11px] font-semibold border rounded-sm transition-colors ${
+                sortBy === o.key
+                  ? 'bg-on-surface text-surface border-on-surface'
+                  : 'border-outline-variant text-on-surface-variant hover:text-on-surface hover:border-on-surface/40'
+              }`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Legend — gradient bar spanning actual data range */}
+      <div className="px-4 py-2 border-b border-outline-variant flex items-center gap-3">
+        {maxNeg < 0 && <span className="text-[10px] text-on-surface-variant font-data-mono">{maxNeg.toFixed(2)}%</span>}
+        <div className="flex-1 h-2 rounded-sm" style={{
+          background: maxNeg < 0 && maxPos > 0
+            ? 'linear-gradient(to right, #dc2626, #fee2e2, #dcfce7, #16a34a)'
+            : maxPos > 0
+              ? 'linear-gradient(to right, #dcfce7, #16a34a)'
+              : 'linear-gradient(to right, #dc2626, #fee2e2)',
+        }} />
+        {maxPos > 0 && <span className="text-[10px] text-on-surface-variant font-data-mono">+{maxPos.toFixed(2)}%</span>}
+      </div>
+
+      {/* Cards grid */}
+      <div className="p-3">
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
+          {rows.map(r => {
+            const hs      = dynHeatStyle(colorVal(r), maxPos, maxNeg);
+            const primary = mode === 'day' ? r.day_chg : r.pnl_pct;
+            const secondary = mode === 'day' ? r.pnl_pct : r.day_chg;
+            const secLabel  = mode === 'day' ? 'Net' : 'Day';
+            return (
+              <div key={r.symbol} style={{ background: hs.bg }}
+                className="rounded-sm p-2.5 flex flex-col gap-0.5 min-w-0">
+                <span style={{ color: hs.textMain }} className="text-[11px] font-bold truncate tracking-wide">{r.symbol}</span>
+                <span style={{ color: hs.textMain }} className="text-lg font-bold leading-tight">
+                  {primary >= 0 ? '+' : ''}{primary.toFixed(2)}%
+                </span>
+                <span style={{ color: hs.textSub }} className="text-[10px]">
+                  ₹{fmtAmt(r.curr_val)}
+                </span>
+                <span style={{ color: hs.textSub }} className="text-[10px] font-semibold">
+                  {r.pnl >= 0 ? '+' : ''}₹{fmtAmt(r.pnl)}
+                </span>
+                {secondary !== 0 && (
+                  <span style={{ color: hs.textSub }} className="text-[9px] mt-0.5">
+                    {secLabel} {secondary >= 0 ? '+' : ''}{secondary.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -1086,6 +1228,9 @@ export default function DashboardPage() {
               </table>
             </div>
           </div>
+
+          <HoldingsHeatmap holdings={holdings} quotes={fyersQuotes} mode="pnl" />
+          <HoldingsHeatmap holdings={holdings} quotes={fyersQuotes} mode="day" />
 
         </div>
 

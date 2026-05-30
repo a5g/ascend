@@ -4,6 +4,7 @@ interface AppSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: string[];
+  labelMap?: Record<string, string>;  // optional display labels keyed by option value
   placeholder?: string;
   searchable?: boolean;
   className?: string;
@@ -14,6 +15,7 @@ export default function AppSelect({
   value,
   onChange,
   options,
+  labelMap,
   placeholder = 'Select…',
   searchable = false,
   className = '',
@@ -55,8 +57,8 @@ export default function AppSelect({
   const filtered = useMemo(() => {
     if (!query.trim()) return options;
     const q = query.toLowerCase();
-    return options.filter(o => o.toLowerCase().includes(q));
-  }, [options, query]);
+    return options.filter(o => (labelMap?.[o] ?? o).toLowerCase().includes(q) || o.toLowerCase().includes(q));
+  }, [options, labelMap, query]);
 
   function select(opt: string) {
     onChange(opt);
@@ -78,7 +80,7 @@ export default function AppSelect({
     }
   }
 
-  const displayValue = value || placeholder;
+  const displayValue = value ? (labelMap?.[value] ?? value) : placeholder;
 
   return (
     <div ref={containerRef} className={`relative ${className}`} onKeyDown={handleKeyDown}>
@@ -140,7 +142,7 @@ export default function AppSelect({
                         : 'text-on-surface border-transparent hover:bg-surface-container'
                   }`}
                 >
-                  {opt}
+                  {labelMap?.[opt] ?? opt}
                   {isSelected && (
                     <span className="material-symbols-outlined text-primary" style={{ fontSize: '14px' }}>check</span>
                   )}

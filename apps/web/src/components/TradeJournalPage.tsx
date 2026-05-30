@@ -625,12 +625,27 @@ function DeleteTradeConfirm({ row, onClose, onDeleted }: {
 
 interface AddTradeModalProps {
   allMethods: string[];
-  allAccounts: string[];
+  userMap: Record<string, JournalUser>;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function AddTradeModal({ allMethods, allAccounts, onClose, onSaved }: AddTradeModalProps) {
+function AddTradeModal({ allMethods, userMap, onClose, onSaved }: AddTradeModalProps) {
+  const allUserIds     = useMemo(() =>
+    Object.keys(userMap).sort((a, b) => {
+      const la = userMap[a]?.name ?? a;
+      const lb = userMap[b]?.name ?? b;
+      return la.localeCompare(lb);
+    }), [userMap]);
+  const accountLabelMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const id of allUserIds) {
+      const name = userMap[id]?.name;
+      m[id] = name ? `${name} (${id})` : id;
+    }
+    return m;
+  }, [allUserIds, userMap]);
+
   const [security,   setSecurity]   = useState<SecurityOption | null>(null);
   const [method,     setMethod]     = useState('');
   const [account,    setAccount]    = useState('');
@@ -804,7 +819,7 @@ function AddTradeModal({ allMethods, allAccounts, onClose, onSaved }: AddTradeMo
                 </div>
                 <div>
                   <label className={labelCls}>Account</label>
-                  <AppSelect value={account} onChange={setAccount} options={allAccounts} searchable listMaxHeight="max-h-36" />
+                  <AppSelect value={account} onChange={setAccount} options={allUserIds} labelMap={accountLabelMap} searchable listMaxHeight="max-h-36" />
                 </div>
               </div>
 
@@ -2941,7 +2956,7 @@ export default function TradeJournalPage() {
       {addModal && (
         <AddTradeModal
           allMethods={allMethods}
-          allAccounts={allAccounts}
+          userMap={activeUsers}
           onClose={() => setAddModal(false)}
           onSaved={() => { setAddModal(false); fetchAllTrades(); }}
         />
