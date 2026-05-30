@@ -97,7 +97,7 @@ export default defineConfig({
     }),
     mfeBootstrapResilientPlugin(),
   ],
-  base: "/ascend/",
+  base: "/",
   server: {
     port: 3001,
     proxy: {
