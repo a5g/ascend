@@ -8,8 +8,7 @@ const apiBaseUrl = `http://${apiHost}:3000`;
 
 // In production set VITE_MFE_<NAME>_URL to the full remoteEntry.js URL for each deployed MFE.
 // Falls back to localhost:<port> for local development.
-const mfeEntry = (envVar: string, port: number) =>
-  process.env[envVar] ?? `http://${remoteHost}:${port}/remoteEntry.js`;
+const mfeEntry = (envVar: string, port: number) => process.env[envVar] ?? `http://${remoteHost}:${port}/remoteEntry.js`;
 
 // Patches the MF entry bootstrap module to make offline remotes non-fatal.
 //
@@ -98,7 +97,7 @@ export default defineConfig({
     }),
     mfeBootstrapResilientPlugin(),
   ],
-  base: process.env.VITE_BASE_PATH || "/ascend",
+  base: "/ascend/",
   server: {
     port: 3001,
     proxy: {
