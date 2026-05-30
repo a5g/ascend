@@ -1,15 +1,20 @@
 import { Sequelize, DataTypes, Model } from 'sequelize';
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME || process.env.POSTGRES_DB || 'ascend',
-  process.env.DB_USER || process.env.POSTGRES_USER || 'anand',
-  process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'password',
-  {
-    host: process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
-    dialect: 'postgres',
-  }
-);
+const sequelize = process.env.DATABASE_URL
+  ? new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      dialectOptions: { ssl: { require: true, rejectUnauthorized: false } },
+    })
+  : new Sequelize(
+      process.env.DB_NAME || process.env.POSTGRES_DB || 'ascend',
+      process.env.DB_USER || process.env.POSTGRES_USER || 'anand',
+      process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'password',
+      {
+        host: process.env.DB_HOST || process.env.POSTGRES_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || process.env.POSTGRES_PORT || '5432'),
+        dialect: 'postgres',
+      }
+    );
 
 class User extends Model {
   public id!: number;

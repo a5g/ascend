@@ -1,4 +1,10 @@
-require('dotenv').config({ path: '../../.env' });
+import type { IncomingMessage, ServerResponse } from 'http';
+
+// dotenv is only needed locally; Vercel injects env vars at build time
+if (!process.env.VERCEL) {
+  require('dotenv').config({ path: '../../.env' });
+}
+
 import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
 bootstrapService('api-gateway');
 
@@ -6,21 +12,23 @@ import Fastify from 'fastify';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyCors from '@fastify/cors';
 
+const allowedOrigins = [
+  'http://localhost:3001',
+  'http://localhost:4001',
+  'http://localhost:4002',
+  'http://localhost:4003',
+  'http://localhost:4004',
+  'http://localhost:4005',
+  'http://localhost:4006',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
+
 const fastify = Fastify({ loggerInstance: createLogger('api-gateway') });
 
 fastify.register(fastifyObservability);
 
-// Allow requests from the shell and all MFE dev servers (ports 3001, 4001–4006)
 fastify.register(fastifyCors, {
-  origin: [
-    'http://localhost:3001',
-    'http://localhost:4001',
-    'http://localhost:4002',
-    'http://localhost:4003',
-    'http://localhost:4004',
-    'http://localhost:4005',
-    'http://localhost:4006',
-  ],
+  origin: allowedOrigins,
   credentials: true,
 });
 
@@ -37,9 +45,7 @@ fastify.register(fastifyHelmet, {
   },
 });
 
-fastify.get('/health', async (request, reply) => {
-  return { status: 'ok' };
-});
+fastify.get('/health', async () => ({ status: 'ok' }));
 
 import alertsRoutes from './alerts';
 fastify.register(alertsRoutes);
@@ -65,13 +71,16 @@ fastify.register(fyersRoutes);
 import tradeJournalRoutes from './trade-journal';
 fastify.register(tradeJournalRoutes);
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000, host: '0.0.0.0' });
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
+// Vercel serverless handler — reuses the same Fastify instance across warm invocations
+export default async (req: IncomingMessage, res: ServerResponse) => {
+  await fastify.ready();
+  fastify.server.emit('request', req, res);
 };
 
-start();
+// Local development: start the HTTP server
+if (!process.env.VERCEL) {
+  fastify.listen({ port: 3000, host: '0.0.0.0' }).catch((err) => {
+    fastify.log.error(err);
+    process.exit(1);
+  });
+}
