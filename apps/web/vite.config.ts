@@ -98,6 +98,7 @@ export default defineConfig({
     }),
     mfeBootstrapResilientPlugin(),
   ],
+  base: process.env.VITE_BASE_PATH || "/ascend"
   server: {
     port: 3001,
     proxy: {
