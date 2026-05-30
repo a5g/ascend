@@ -2,6 +2,12 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { federation } from "@module-federation/vite";
 
+const remoteHost = process.env.VITE_REMOTE_HOST || "localhost";
+const apiHost = process.env.VITE_API_HOST || "localhost";
+
+const remoteEntry = (port: number) => `http://${remoteHost}:${port}/remoteEntry.js`;
+const apiBaseUrl = `http://${apiHost}:3000`;
+
 // Patches the MF entry bootstrap module to make offline remotes non-fatal.
 //
 // The generated bootstrap (getBootstrapSource) looks like:
@@ -45,22 +51,22 @@ export default defineConfig({
         mfe_dashboard: {
           type: "var",
           name: "mfe_dashboard",
-          entry: "http://192.168.1.8:4001/remoteEntry.js",
+          entry: remoteEntry(4001),
         },
         mfe_position_sizing: {
           type: "var",
           name: "mfe_position_sizing",
-          entry: "http://192.168.1.8:4003/remoteEntry.js",
+          entry: remoteEntry(4003),
         },
         mfe_user_management: {
           type: "var",
           name: "mfe_user_management",
-          entry: "http://192.168.1.8:4005/remoteEntry.js",
+          entry: remoteEntry(4005),
         },
         mfe_super_admin: {
           type: "var",
           name: "mfe_super_admin",
-          entry: "http://192.168.1.8:4006/remoteEntry.js",
+          entry: remoteEntry(4006),
         },
       },
       shared: {
@@ -74,14 +80,14 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      "/api": "http://192.168.1.8:3000",
+      "/api": apiBaseUrl,
     },
   },
   preview: {
     port: 8080,
     host: true,
     proxy: {
-      "/api": "http://192.168.1.8:3000",
+      "/api": apiBaseUrl,
     },
   },
 });

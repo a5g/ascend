@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../../.env' });
 import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
 bootstrapService('notification-service');
 
@@ -5,7 +6,7 @@ import Fastify from 'fastify';
 import fastifyHelmet from '@fastify/helmet';
 import amqp from 'amqplib';
 
-const fastify = Fastify({ logger: createLogger('notification-service') });
+const fastify = Fastify({ loggerInstance: createLogger('notification-service') });
 
 fastify.register(fastifyObservability);
 fastify.register(fastifyHelmet);

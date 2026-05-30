@@ -4,7 +4,7 @@
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "dev": "tsc && concurrently \"tsc -w\" \"node dist/index.js\""
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.8.0",
     "concurrently": "^9.2.1",
+    "tsx": "^4.22.0",
     "typescript": "^6.0.3"
   }
 }

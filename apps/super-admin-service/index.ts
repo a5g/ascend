@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../../.env' });
 import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
 bootstrapService('super-admin-service');
 
@@ -6,7 +7,7 @@ import fastifyHelmet from '@fastify/helmet';
 import { User } from '@ascend/db';
 import crypto from 'crypto';
 
-const fastify = Fastify({ logger: createLogger('super-admin-service') });
+const fastify = Fastify({ loggerInstance: createLogger('super-admin-service') });
 
 fastify.register(fastifyObservability);
 fastify.register(fastifyHelmet);

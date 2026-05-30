@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../../.env' });
 import { bootstrapService, fastifyObservability, createLogger } from '@ascend/observability';
 bootstrapService('position-sizing-service');
 
@@ -8,7 +9,7 @@ import configsRoutes from './routes/configs';
 import * as jwt from 'jsonwebtoken';
 import fastifyCors from '@fastify/cors';
 
-const fastify = Fastify({ logger: createLogger('position-sizing-service') });
+const fastify = Fastify({ loggerInstance: createLogger('position-sizing-service') });
 
 fastify.register(fastifyObservability);
 fastify.register(fastifyHelmet);
