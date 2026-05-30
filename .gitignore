@@ -4,3 +4,4 @@ coverage/
 .env
 apps/web/dist/
 apps/api/dist/
+.vercel
