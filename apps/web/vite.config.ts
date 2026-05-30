@@ -98,6 +98,15 @@ export default defineConfig({
     mfeBootstrapResilientPlugin(),
   ],
   base: "/",
+  build: {
+    target: "esnext", // ← ensures ES module output
+    modulePreload: true,
+    rollupOptions: {
+      output: {
+        format: "es", // ← explicit ES module format
+      },
+    },
+  },
   server: {
     port: 3001,
     proxy: {
