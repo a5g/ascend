@@ -14,5 +14,19 @@
   ],
   "github": {
     "productionBranch": "main"
-  }
+  },
+  "headers": [
+    {
+      "source": "/assets/(.*)\\.js",
+      "headers": [{ "key": "Content-Type", "value": "application/javascript; charset=utf-8" }]
+    },
+    {
+      "source": "/assets/(.*)\\.css",
+      "headers": [{ "key": "Content-Type", "value": "text/css; charset=utf-8" }]
+    }
+  ],
+  "rewrites": [
+    { "source": "/((?!api).*)", "destination": "/index.html" },
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
+  ]
 }
