@@ -22,10 +22,6 @@ function safeLazy<T extends React.ComponentType<any>>(
 }
 
 // @ts-ignore
-const NotificationBell = safeLazy(() => import('mfe_alerts/NotificationBell'));
-// @ts-ignore
-const Alerts = safeLazy(() => import('mfe_alerts/Alerts'));
-// @ts-ignore
 const SuperAdmin = safeLazy(() => import('mfe_super_admin/SuperAdmin'));
 
 function App() {
@@ -55,11 +51,6 @@ function App() {
           <img src="/ASCEND.png" alt="Ascend Wealth Management" style={{ height: '38px', width: '38px', borderRadius: '8px', objectFit: 'cover' }} />
           <div className="flex items-center gap-4">
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" title="Alerts" style={{ fontSize: '24px' }}>notifications</span>
-            <MfeErrorBoundary name="mfe_alerts">
-              <Suspense fallback={null}>
-                <NotificationBell />
-              </Suspense>
-            </MfeErrorBoundary>
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="help">help</span>
             <span className="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors" data-icon="security">security</span>
           </div>
@@ -170,15 +161,6 @@ function App() {
 
       {route === 'securities' && <SecuritiesPage />}
 
-      {route === 'alerts' && (
-          <div style={{ padding: '2rem' }}>
-              <MfeErrorBoundary name="mfe_alerts" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>Alerts service unavailable.</div>}>
-                <Suspense fallback={<div>Loading alerts...</div>}>
-                  <Alerts />
-                </Suspense>
-              </MfeErrorBoundary>
-          </div>
-      )}
 
       {route === 'admin' && (
           <MfeErrorBoundary name="mfe_super_admin" fallback={<div style={{ padding: '2rem', color: '#94a3b8' }}>Super Admin service unavailable.</div>}>

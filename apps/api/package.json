@@ -20,6 +20,7 @@
     "@ascend/db": "workspace:*",
     "@ascend/observability": "workspace:*",
     "@ascend/zerodha": "workspace:*",
+    "@fastify/cors": "^11.2.0",
     "@fastify/helmet": "^13.0.2",
     "fastify": "^5.8.5",
     "fyers-api-v3": "^1.8.0",

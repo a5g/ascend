@@ -4,10 +4,25 @@ bootstrapService('api-gateway');
 
 import Fastify from 'fastify';
 import fastifyHelmet from '@fastify/helmet';
+import fastifyCors from '@fastify/cors';
 
 const fastify = Fastify({ loggerInstance: createLogger('api-gateway') });
 
 fastify.register(fastifyObservability);
+
+// Allow requests from the shell and all MFE dev servers (ports 3001, 4001–4006)
+fastify.register(fastifyCors, {
+  origin: [
+    'http://localhost:3001',
+    'http://localhost:4001',
+    'http://localhost:4002',
+    'http://localhost:4003',
+    'http://localhost:4004',
+    'http://localhost:4005',
+    'http://localhost:4006',
+  ],
+  credentials: true,
+});
 
 fastify.register(fastifyHelmet, {
   contentSecurityPolicy: {
